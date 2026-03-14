@@ -8,7 +8,7 @@ export default function HomeScreen() {
 
   return (
     <>
-      <View className="flex-1 p-6">
+      <View className="flex-1 p-6 mt-8">
         <DashboardProfile />
         <View className='mb-4'>
 

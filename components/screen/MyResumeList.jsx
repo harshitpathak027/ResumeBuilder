@@ -1,9 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { View, Text } from "react-native";
+import { View, Text, Touchable, TouchableOpacity } from "react-native";
 
 const MyResumeList = () => {
     return (
-        <>
+        <>  
+        <TouchableOpacity activeOpacity={0.8}  >
             <View className="flex-col bg-white p-6 py-8 rounded-2xl">
                 <View className="flex-row justify-between">
                    <View className="flex-row gap-5">
@@ -30,6 +31,7 @@ const MyResumeList = () => {
                     </View>
                 </View>
             </View>
+            </TouchableOpacity>
         </>
     )
 }

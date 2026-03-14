@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { triggerVibration } from '../constant/vibration';
 
 const tabs = [
   { name: 'index', route: '/', label: 'Home', icon: 'home' },
@@ -11,7 +12,13 @@ const tabs = [
 export default function CustomNavbar() {
   const router = useRouter();
   const pathname = usePathname();
+ const handlePress = (tab) => {
+      router.push(tab.route);
+    };
 
+  const handlePressIn = () => {
+    triggerVibration("tap");
+  };
   return (
     <View className="flex-row bg-white border-t border-gray-200 pb-2 pt-2">
       {tabs.map((tab) => {
@@ -21,7 +28,8 @@ export default function CustomNavbar() {
           <TouchableOpacity
             key={tab.name}
             className="flex-1 items-center justify-center gap-1"
-            onPress={() => router.push(tab.route)}
+            onPressIn={handlePressIn}
+            onPress={() => handlePress(tab)}
           >
             <MaterialIcons
               size={24}

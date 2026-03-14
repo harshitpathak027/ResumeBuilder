@@ -4,7 +4,7 @@ import { Text, View, ScrollView } from 'react-native';
 export default function ProfileScreen() {
   const items =['Account Settings', 'Privacy Policy', 'Terms of Service', 'Help & Support', 'Logout'];
   return (
-    <View className="flex-1 p-4">
+    <View className="flex-1 p-4 mt-8">
       <Text className="text-2xl font-bold">Profile</Text>
       <View className="mt-4 flex-row p-6 bg-white rounded-2xl shadow-black">
         <View className="w-20 h-20 rounded-full bg-gray-300 mr-4">
