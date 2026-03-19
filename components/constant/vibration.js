@@ -32,7 +32,18 @@ export const triggerVibration = async (mode = "tap") => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       return;
     }
-
+if (mode === "flash-click") {
+  if (Platform.OS === "android") {
+    if (Haptics.performAndroidHapticsAsync && Haptics.AndroidHaptics?.Toggle_On) {
+      await Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Toggle_On);
+    } else {
+      Vibration.vibrate(18);
+    }
+    return;
+  }
+  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid);
+  return;
+}
     if (mode === "impact-heavy") {
       if (Platform.OS === "android") {
         Vibration.vibrate(30);

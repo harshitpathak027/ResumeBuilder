@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerVibration } from '../constant/vibration';
 
 const tabs = [
@@ -12,18 +13,21 @@ const tabs = [
 export default function CustomNavbar() {
   const router = useRouter();
   const pathname = usePathname();
- const handlePress = (tab) => {
-      router.push(tab.route);
-    };
+  const insets = useSafeAreaInsets();
+  const handlePress = (tab) => {
+    router.push(tab.route);
+  };
 
   const handlePressIn = () => {
-    triggerVibration("tap");
+    triggerVibration("flash-click");
   };
   return (
-    <View className="flex-row bg-white border-t border-gray-200 pb-2 pt-2">
+    <View
+      className="flex-row bg-white border-t border-gray-200 pt-2"
+      style={{ paddingBottom: Math.max(insets.bottom, 8) }}
+    >
       {tabs.map((tab) => {
         const isActive = pathname === tab.route || (tab.route === '/' && pathname === '/index');
-        console.log('Current Pathname:', pathname, 'Tab Route:', tab.route, 'Is Active:', isActive);
         return (
           <TouchableOpacity
             key={tab.name}
