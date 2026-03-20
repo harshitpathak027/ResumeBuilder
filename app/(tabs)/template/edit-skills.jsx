@@ -43,7 +43,7 @@ const EditSkills = () => {
     <View className="flex-1 bg-gray-100">
       <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
         <View className="flex-row items-start justify-between">
-          <TouchableOpacity className="flex-row items-start gap-3" onPress={() => router.back()} activeOpacity={0.8}>
+          <TouchableOpacity className="flex-row items-center gap-3" onPress={() => router.back()} activeOpacity={0.8}>
             <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
             <View>
               <Text className="text-xl font-semibold text-gray-900">Skills</Text>

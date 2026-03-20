@@ -1,50 +1,203 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import FormInputBox from "../../../components/ui/FormInputBox";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
+import { API_BASE_URL } from "../../../constants/api";
+import { authFetch } from "../../../utils/authFetch";
 
 const EditWorkExperience = () => {
   const router = useRouter();
-  const [showAddForm, setShowAddForm] = useState(false);
+  const { resumeId } = useLocalSearchParams();
 
-  const experienceItems = [
-    {
-      id: "exp-1",
-      title: "Senior Software Engineer",
-      company: "TechCorp Inc.",
-      timeline: "Jan 2022 - Present · San Francisco, CA",
-      summary: "Led development of microservices architecture serving 1M+ users. Mentored team members and improved release reliability.",
-      isCurrent: true,
-    },
-    {
-      id: "exp-2",
-      title: "Software Engineer",
-      company: "StartupXYZ",
-      timeline: "Jun 2019 - Dec 2021 · Remote",
-      summary: "Built and maintained React applications with TypeScript. Collaborated with design team to ship user-focused features.",
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [experienceItems, setExperienceItems] = useState([]);
+
+  const [formData, setFormData] = useState({
+    jobTitle: "",
+    company: "",
+    location: "",
+    startDate: "",
+    endDate: "",
+    isCurrent: false,
+    description: "",
+    sortOrder: 0,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      jobTitle: "",
+      company: "",
+      location: "",
+      startDate: "",
+      endDate: "",
       isCurrent: false,
-    },
-    {
-      id: "exp-3",
-      title: "Junior Developer",
-      company: "WebAgency Co.",
-      timeline: "Aug 2017 - May 2019 · New York, NY",
-      summary: "Developed custom WordPress themes and plugins for client websites. Participated in QA and deployment cycles.",
-      isCurrent: false,
-    },
-  ];
+      description: "",
+      sortOrder: 0,
+    });
+    setEditingId(null);
+  };
+
+  const fetchWorkExperience = async () => {
+    if (!resumeId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await authFetch(`${API_BASE_URL}/work-experience/resume/${resumeId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setExperienceItems(Array.isArray(data) ? data : []);
+      } else {
+        setExperienceItems([]);
+      }
+    } catch (error) {
+      console.log("Error fetching work experience:", error);
+      Alert.alert("Error", "Could not load work experience");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkExperience();
+  }, [resumeId]);
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddOrUpdate = async () => {
+    if (!resumeId) {
+      Alert.alert("Error", "resumeId missing");
+      return;
+    }
+
+    if (!formData.jobTitle.trim() || !formData.company.trim()) {
+      Alert.alert("Validation", "Job title and company are required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        resume: { id: Number(resumeId) },
+        jobTitle: formData.jobTitle,
+        company: formData.company,
+        location: formData.location,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        isCurrent: formData.isCurrent,
+        description: formData.description,
+        sortOrder: 0,
+      };
+
+      const url = editingId
+        ? `${API_BASE_URL}/work-experience/${editingId}`
+        : `${API_BASE_URL}/work-experience`;
+
+      const method = editingId ? "PUT" : "POST";
+
+      const response = await authFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        Alert.alert("Success", editingId ? "Position updated" : "Position added");
+        await fetchWorkExperience();
+        resetForm();
+        setShowAddForm(false);
+      } else {
+        Alert.alert("Error", "Could not save position");
+      }
+    } catch (error) {
+      console.log("Error saving position:", error);
+      Alert.alert("Error", "Could not save position");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = async (id) => {
+    try {
+      const req = await authFetch(`${API_BASE_URL}/work-experience/${id}`);
+
+      if (req.ok) {
+        const data = await req.json();
+        setEditingId(id);
+        setFormData({
+          jobTitle: data.jobTitle || "",
+          company: data.company || "",
+          location: data.location || "",
+          startDate: data.startDate || "",
+          endDate: data.endDate || "",
+          isCurrent: data.isCurrent || false,
+          description: data.description || "",
+          sortOrder: data.sortOrder || 0,
+        });
+        setShowAddForm(true);
+      }
+    } catch (error) {
+      console.log("Error loading position:", error);
+      Alert.alert("Error", "Could not load position");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/work-experience/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        await fetchWorkExperience();
+      } else {
+        Alert.alert("Error", "Could not delete position");
+      }
+    } catch (error) {
+      console.log("Error deleting position:", error);
+      Alert.alert("Error", "Could not delete position");
+    }
+  };
+
+  const handleAddForm = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-gray-100 items-center justify-center">
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-gray-100">
       <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
         <View className="flex-row items-start justify-between">
-          <TouchableOpacity className="flex-row items-start gap-3" onPress={() => router.back()} activeOpacity={0.8}>
+          <TouchableOpacity className="flex-row items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
             <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
             <View>
               <Text className="text-xl font-semibold text-gray-900">Work Experience</Text>
-              <Text className="text-gray-500 text-sm mt-1">3 positions added</Text>
+              <Text className="text-gray-500 text-sm mt-1">{experienceItems.length} positions added</Text>
             </View>
           </TouchableOpacity>
 
@@ -67,7 +220,7 @@ const EditWorkExperience = () => {
             </View>
           </View>
           <TouchableOpacity className="self-start px-4 h-10 rounded-2xl bg-blue-600 items-center justify-center" activeOpacity={0.85}>
-            <Text className="text-white text-base font-semibold">Enhance All Descriptions</Text>
+            <Text className="text-white text-base font-semibold">Coming Soon</Text>
           </TouchableOpacity>
         </View>
 
@@ -75,7 +228,7 @@ const EditWorkExperience = () => {
           <TouchableOpacity
             className="mx-4 mb-4 rounded-2xl border border-dashed border-green-500 bg-green-400 h-12 items-center justify-center"
             activeOpacity={0.85}
-            onPress={() => setShowAddForm(true)}
+            onPress={handleAddForm}
           >
             <Text className="text-gray-900 text-base font-semibold">+ Add New Position</Text>
           </TouchableOpacity>
@@ -84,34 +237,79 @@ const EditWorkExperience = () => {
         {showAddForm && (
           <View className="bg-white rounded-3xl p-4 mx-4 mb-4 border border-gray-200">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-gray-900">New Position</Text>
+              <Text className="text-lg font-semibold text-gray-900">{editingId ? "Edit Position" : "New Position"}</Text>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
                 <Text className="text-gray-900 text-sm font-medium">Cancel</Text>
               </TouchableOpacity>
             </View>
 
-            <FormInputBox label="Job Title" value="e.g., Software Engineer" />
-            <FormInputBox label="Company" value="Company name" icon="apartment" />
-            <FormInputBox label="Location" value="City, State or Remote" />
+            <FormInputBox
+              label="Job Title"
+              value={formData.jobTitle}
+              onChange={(v) => handleChange("jobTitle", v)}
+              placeholder="e.g., Software Engineer"
+            />
+            <FormInputBox
+              label="Company"
+              value={formData.company}
+              onChange={(v) => handleChange("company", v)}
+              placeholder="Company name"
+              icon="apartment"
+            />
+            <FormInputBox
+              label="Location"
+              value={formData.location}
+              onChange={(v) => handleChange("location", v)}
+              placeholder="City, State or Remote"
+            />
 
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <FormInputBox label="Start Date" value="Jan 2022" icon="calendar-today" />
+                <FormInputBox
+                  label="Start Date"
+                  value={formData.startDate}
+                  onChange={(v) => handleChange("startDate", v)}
+                  placeholder="Jan 2022"
+                  icon="calendar-today"
+                />
               </View>
               <View className="flex-1">
-                <FormInputBox label="End Date" value="Present" />
+                <FormInputBox
+                  label="End Date"
+                  value={formData.endDate}
+                  onChange={(v) => handleChange("endDate", v)}
+                  placeholder="Present"
+                />
               </View>
             </View>
 
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-gray-900 text-base">I currently work here</Text>
-              <Switch value={false} trackColor={{ false: "#d1d5db", true: "#93c5fd" }} thumbColor="#ffffff" />
+              <Switch
+                value={formData.isCurrent}
+                onValueChange={(v) => handleChange("isCurrent", v)}
+                trackColor={{ false: "#d1d5db", true: "#93c5fd" }}
+                thumbColor="#ffffff"
+              />
             </View>
 
-            <FormInputBox label="Description" value="Describe your responsibilities and achievements..." multiline />
+            <FormInputBox
+              label="Description"
+              value={formData.description}
+              onChange={(v) => handleChange("description", v)}
+              placeholder="Describe your responsibilities and achievements..."
+              multiline
+            />
 
-            <TouchableOpacity className="mt-1 bg-blue-600 rounded-2xl h-12 items-center justify-center" activeOpacity={0.9}>
-              <Text className="text-white text-base font-semibold">Add Position</Text>
+            <TouchableOpacity
+              className={`${saving ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              activeOpacity={0.9}
+              onPress={handleAddOrUpdate}
+              disabled={saving}
+            >
+              <Text className="text-white text-base font-semibold">
+                {editingId ? "Update Position" : "Add Position"}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -122,11 +320,11 @@ const EditWorkExperience = () => {
               <View className="flex-row items-start gap-3 flex-1">
                 <MaterialIcons name="drag-indicator" size={20} color="#9ca3af" />
                 <View className="flex-1">
-                  <Text className="text-base font-semibold text-gray-900">{item.title}</Text>
+                  <Text className="text-base font-semibold text-gray-900">{item.jobTitle}</Text>
                   <Text className="text-gray-500 text-sm mt-1">{item.company}</Text>
-                  <Text className="text-gray-500 text-sm mt-1">{item.timeline}</Text>
+                  <Text className="text-gray-500 text-sm mt-1">{item.startDate} - {item.endDate} · {item.location}</Text>
                   <Text className="text-gray-500 text-sm mt-2" numberOfLines={2}>
-                    {item.summary}
+                    {item.description}
                   </Text>
                   {item.isCurrent && (
                     <View className="self-start mt-3 px-3 py-1 rounded-2xl bg-green-100">
@@ -136,10 +334,10 @@ const EditWorkExperience = () => {
                 </View>
               </View>
               <View className="flex-row items-center gap-4">
-                <TouchableOpacity activeOpacity={0.8}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => handleEdit(item.id)}>
                   <MaterialIcons name="edit" size={18} color="#4b5563" />
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => handleDelete(item.id)}>
                   <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
                 </TouchableOpacity>
               </View>

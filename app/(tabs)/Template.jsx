@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ShimmerCard from "../../components/ui/ShimmerCard";
 import { useRouter } from "expo-router";
 import { API_BASE_URL } from "../../constants/api";
+import { authFetch } from "../../utils/authFetch";
+import { clearAuthSession } from "../../utils/authStorage";
 
 const Template= ()=>{
       const [templates, setTemplates] = useState([]);
@@ -17,7 +19,14 @@ const Template= ()=>{
         try {
             setLoading(true);
             setError("");
-            const response = await fetch(`${API_BASE_URL}/templates`);
+            const response = await authFetch(`${API_BASE_URL}/templates`);
+            if (response.status === 401) {
+                await clearAuthSession();
+                setTemplates([]);
+                setError("Session expired. Please login again.");
+                router.push('/login');
+                return;
+            }
             if (!response.ok) {
                 throw new Error(`Request failed: ${response.status}`);
             }
@@ -59,12 +68,12 @@ const Template= ()=>{
         };
     }, [loading, shimmerValue]);
 
-    const handlePress = async (id,name) => {
+      const handlePress = async (id,name,description) => {
         await triggerVibration("tap");
         console.log("Navigating to template with ID:", id);
         router.push({
         pathname: "/template/[id]",
-        params: { id: String(id), name: String(name) },
+          params: { id: String(id), name: String(name), description: String(description || "") },
         });  
   };
     const templatesToRender = templates.length !== 0 ? templates : [{ id: "coming-soon", name: "Executive" }];
@@ -91,7 +100,7 @@ const Template= ()=>{
                         {templatesToRender.map((template, index) => (
                             <View key={template.id ?? index} className="w-1/2 px-1 mb-4">
                                 <View className="flex-col h-56 shadow-slate-600 bg-white rounded-lg">
-                                    <TouchableOpacity className="h-full" activeOpacity={0.8} onPress={()=>handlePress(template.id,template.name)}>
+                                    <TouchableOpacity className="h-full" activeOpacity={0.8} onPress={()=>handlePress(template.id,template.name,template.description)}>
                                         <View className="h-3/4 bg-[#d5e0f0] rounded-lg overflow-hidden">
                                             {index === 0 ? (
                                                 <Image

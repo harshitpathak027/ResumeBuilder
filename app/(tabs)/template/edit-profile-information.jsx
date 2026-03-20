@@ -5,6 +5,7 @@ import FormSectionCard from "../../../components/ui/FormSectionCard";
 import ProfileField from "../../../components/ui/ProfileField";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../../constants/api";
+import { authFetch } from "../../../utils/authFetch";
 
 
 const EditProfileInformation = () => {
@@ -43,7 +44,7 @@ const handleBack = () => {
     return;
   }
   try{
-  const response = await fetch(`${API_BASE_URL}/personal/${resumeId}`);
+  const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`);
     if (response.ok) {
       const data = await response.json();
       setFormData({
@@ -78,7 +79,7 @@ const handleSave = async () => {
 
   try {
     setSaving(true);
-    const response = await fetch(`${API_BASE_URL}/personal/${resumeId}`, {
+    const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...formData, resumeId: Number(resumeId) }),
@@ -105,9 +106,9 @@ useEffect(() => {
   return (
     
     <View className="flex-1 bg-gray-100">
-      <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
-        <TouchableOpacity className="flex-row items-start gap-3" onPress={handleBack} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
+      <View className="pt-12 px-4 pb-3 bg-white border-b  border-blue-100">
+        <TouchableOpacity className="flex-row  align-middle items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
+          <MaterialIcons className="flex align-middle text-center justify-center" name="arrow-back-ios" size={18} color="#6b7280" />
           <View>
             <Text className="text-xl font-semibold text-gray-900">{title}</Text>
             <Text className="text-gray-500 text-sm mt-1">Basic details for your resume</Text>
@@ -179,7 +180,7 @@ useEffect(() => {
     label="Summary"
     value={formData.professionalSummary}
     onChange={(v) => handleChange("professionalSummary", v)}
-    multiline={true}
+    // multiline={true}
   />
 </FormSectionCard>
       </ScrollView>
