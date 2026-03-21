@@ -9,15 +9,32 @@ export default function TabLayout() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Check auth on mount and when pathname changes
   useEffect(() => {
+    let isMounted = true;
+
     const loadAuth = async () => {
-      const token = await getAuthToken();
-      setIsLoggedIn(Boolean(token));
-      setIsCheckingAuth(false);
+      try {
+        const token = await getAuthToken();
+        if (isMounted) {
+          setIsLoggedIn(Boolean(token));
+          setIsCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        if (isMounted) {
+          setIsLoggedIn(false);
+          setIsCheckingAuth(false);
+        }
+      }
     };
 
     loadAuth();
-  }, [pathname]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
 

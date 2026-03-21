@@ -1,50 +1,24 @@
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export const API_URLS = {
-  LOCAL: "http://localhost:8080",
+  LOCAL_WEB: "http://localhost:8080",
+  LOCAL_ANDROID_EMULATOR: "http://10.0.2.2:8080",
+  LOCAL_MOBILE_LAN: "http://192.168.1.100:8080",
   ANDROID_EMULATOR: "http://10.0.2.2:8080",
   PRODUCTION: "https://resumebuilderbackend-production.up.railway.app",
 };
 
-const ENV_API_URL = (process.env.EXPO_PUBLIC_API_URL || '').trim();
+const LOCAL_API_BASE_URL = Platform.select({
+  web: API_URLS.LOCAL_WEB,
+  android: API_URLS.LOCAL_MOBILE_LAN,
+  default: API_URLS.LOCAL_MOBILE_LAN,
+});
 
-const isLanLikeHost = (host) => {
-  if (!host) return false;
+const PRODUCTION_API_BASE_URL = API_URLS.PRODUCTION;
 
-  if (host.endsWith('.local')) return true;
+// MANUAL SWITCH:
+// Use LOCAL while testing with your own backend on localhost/LAN.
+// export const API_BASE_URL = LOCAL_API_BASE_URL;
 
-  if (/^10\./.test(host)) return true;
-  if (/^192\.168\./.test(host)) return true;
-
-  const match = host.match(/^172\.(\d{1,3})\./);
-  if (match) {
-    const secondOctet = Number(match[1]);
-    if (secondOctet >= 16 && secondOctet <= 31) return true;
-  }
-
-  return false;
-};
-
-const getExpoHost = () => {
-  const hostUri =
-    Constants?.expoConfig?.hostUri ||
-    Constants?.expoGoConfig?.debuggerHost ||
-    Constants?.manifest?.debuggerHost ||
-    Constants?.manifest2?.extra?.expoClient?.hostUri ||
-    null;
-
-  if (!hostUri) return null;
-  const host = hostUri.split(":")[0];
-  if (!host || host === 'localhost' || host === '127.0.0.1') return null;
-  if (!isLanLikeHost(host)) return null;
-  return host ? `http://${host}:8080` : null;
-};
-
-const mobileDevBaseUrl = ENV_API_URL || getExpoHost() || API_URLS.PRODUCTION;
-
-export const API_BASE_URL = ENV_API_URL || (__DEV__
-  ? Platform.OS === 'web'
-    ? API_URLS.LOCAL
-    : mobileDevBaseUrl
-  : API_URLS.PRODUCTION);
+// Use PRODUCTION for release testing / real users.
+export const API_BASE_URL = PRODUCTION_API_BASE_URL;

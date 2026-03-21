@@ -7,7 +7,7 @@ const MyResume = ()=>{
             <Text className="font-medium text-xl">My Resumes</Text>
             <TouchableOpacity activeOpacity={0.8} >
 
-            <Text className="text-primary">View All</Text>
+            {/* <Text className="text-primary">View All</Text> */}
             </TouchableOpacity>
 
         </View>

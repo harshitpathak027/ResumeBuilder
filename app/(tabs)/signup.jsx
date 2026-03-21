@@ -1,10 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 import FormInputBox from '../../components/ui/FormInputBox';
 import { API_BASE_URL } from '../../constants/api';
+import { showErrorMessage } from '../../utils/errorMessageBus';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -14,14 +15,26 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const getMissingFields = () => {
+    const missing = [];
+    if (!name.trim()) missing.push('Full Name');
+    if (!email.trim()) missing.push('Email');
+    if (!password.trim()) missing.push('Password');
+    if (!confirmPassword.trim()) missing.push('Confirm Password');
+    return missing;
+  };
+
+  const isFormComplete = getMissingFields().length === 0;
+
   const onSignup = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Missing Fields', 'Please fill name, email and password');
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage('Missing Fields', `Please fill: ${missingFields.join(', ')}`);
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Password and confirm password should be same');
+      showErrorMessage('Password Mismatch', 'Password and confirm password should be same');
       return;
     }
 
@@ -39,14 +52,14 @@ export default function SignupScreen() {
 
       const message = await response.text();
       if (!response.ok) {
-        Alert.alert('Signup Failed', message || 'Unable to register user');
+        showErrorMessage('Failed', message || 'Unable to register user');
         return;
       }
 
-      Alert.alert('Signup Success', 'Your account is created. Please login now.');
+      showErrorMessage('Success', 'Your account is created. Please login now.');
       router.push('/login');
     } catch (error) {
-      Alert.alert('Error', 'Unable to connect to server');
+      showErrorMessage('Error', `${error?.message || 'Unable to connect to server'}\nAPI: ${API_BASE_URL}`);
     } finally {
       setSubmitting(false);
     }
@@ -68,6 +81,7 @@ export default function SignupScreen() {
           onChange={setName}
           icon="badge"
           placeholder="Enter full name"
+          required
         />
         <FormInputBox
           label="Email"
@@ -76,6 +90,7 @@ export default function SignupScreen() {
           icon="email"
           placeholder="Enter email"
           keyboardType="email-address"
+          required
         />
         <FormInputBox
           label="Password"
@@ -83,6 +98,7 @@ export default function SignupScreen() {
           onChange={setPassword}
           icon="lock"
           placeholder="Enter password"
+          required
         />
         <FormInputBox
           label="Confirm Password"
@@ -90,10 +106,11 @@ export default function SignupScreen() {
           onChange={setConfirmPassword}
           icon="lock-outline"
           placeholder="Re-enter password"
+          required
         />
 
         <TouchableOpacity
-          className="bg-blue-600 rounded-xl py-3 items-center justify-center mt-2"
+          className={`${isFormComplete ? 'bg-blue-600' : 'bg-blue-300'} rounded-xl py-3 items-center justify-center mt-2`}
           activeOpacity={0.85}
           onPress={onSignup}
           disabled={submitting}

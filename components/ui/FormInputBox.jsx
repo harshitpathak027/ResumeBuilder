@@ -8,10 +8,16 @@ const FormInputBox = ({ label,
   multiline = false,
   placeholder,
   keyboardType = "default",
-  editable = true, }) => {
+  editable = true,
+  required = false, }) => {
   return (
     <View className="mb-3">
-      <Text className="text-gray-500 text-base font-medium mb-1">{label}</Text>
+      {label ? (
+        <Text className="text-gray-500 text-base font-medium mb-1">
+          {label}
+          {required ? <Text className="text-red-500"> *</Text> : null}
+        </Text>
+      ) : null}
       <View
         className={`rounded-2xl bg-gray-100 px-4 flex-row items-center gap-3 ${
           multiline ? "min-h-28 py-3" : "h-14"

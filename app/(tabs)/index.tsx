@@ -4,10 +4,14 @@ import DashboardProfile from '../../components/screen/DashboardProfile';
 import MyResume from '../../components/screen/MyResume';
 import MyResumeList from '../../components/screen/MyResumeList';
 import { useState } from 'react';
+import BookLoader from '../../components/screen/BookLoader';
 export default function HomeScreen() {
 const [resumeItem,setResumeItem] = useState([]);
+
+
   return (
     <>
+
       <View className="flex-1 p-6 mt-8">
         <DashboardProfile />
         <View className='mb-4'>

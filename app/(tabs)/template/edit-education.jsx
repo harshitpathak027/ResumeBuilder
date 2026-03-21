@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Platform, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Platform, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import FormInputBox from "../../../components/ui/FormInputBox";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
+import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
+import { showErrorMessage } from "../../../utils/errorMessageBus";
 
 const EditEducation = () => {
   const router = useRouter();
@@ -16,6 +18,8 @@ const EditEducation = () => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [educationItems, setEducationItems] = useState([]);
+  const [queuedPopup, setQueuedPopup] = useState(null);
+  const scrollRef = useRef(null);
 
   const [formData, setFormData] = useState({
     school: "",
@@ -30,6 +34,32 @@ const EditEducation = () => {
     sortOrder: 0,
     resume: { id: Number(resumeId) }
   });
+
+  const getMissingFields = () => {
+    const missing = [];
+    if (!formData.school?.trim()) missing.push("School/University");
+    if (!formData.degree?.trim()) missing.push("Degree");
+    if (!formData.field?.trim()) missing.push("Field of Study");
+    if (!formData.location?.trim()) missing.push("Location");
+    if (!formData.startDate?.trim()) missing.push("Start Date");
+    if (!formData.endDate?.trim()) missing.push("End Date");
+    if (!formData.gpa?.trim()) missing.push("GPA");
+    if (!formData.achievements?.trim()) missing.push("Achievements & Activities");
+    return missing;
+  };
+
+  const isFormComplete = getMissingFields().length === 0;
+
+  const queuePopup = (title, message) => {
+    setQueuedPopup({ title, message });
+  };
+
+  useEffect(() => {
+    if (!loading && !saving && queuedPopup) {
+      showErrorMessage(queuedPopup.title, queuedPopup.message);
+      setQueuedPopup(null);
+    }
+  }, [loading, saving, queuedPopup]);
 
   const resetForm = () => {
     setFormData({
@@ -63,7 +93,7 @@ const EditEducation = () => {
       }
     } catch (error) {
       console.log("Error fetching educations:", error);
-      Alert.alert("Error", "Could not load education list");
+      queuePopup("Error", "Could not load education list");
     } finally {
       setLoading(false);
     }
@@ -78,12 +108,13 @@ const EditEducation = () => {
 
   const handleAddOrUpdate = async () => {
     if (!resumeId) {
-      Alert.alert("Error", "resumeId missing");
+      showErrorMessage("Error", "resumeId missing");
       return;
     }
 
-    if (!formData.school.trim() || !formData.degree.trim()) {
-      Alert.alert("Validation", "School and degree are required");
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
       return;
     }
 
@@ -117,16 +148,16 @@ const EditEducation = () => {
       });
 
       if (response.ok) {
-        Alert.alert("Success", editingId ? "Education updated" : "Education added");
+        queuePopup("Success", editingId ? "Education updated" : "Education added");
         await fetchEducations();
         resetForm();
         setShowAddForm(false);
       } else {
-        Alert.alert("Error", "Could not save education");
+        queuePopup("Error", "Could not save education");
       }
     } catch (error) {
       console.log("Error saving education:", error);
-      Alert.alert("Error", "Could not save education");
+      queuePopup("Error", "Could not save education");
     } finally {
       setSaving(false);
     }
@@ -134,15 +165,26 @@ const EditEducation = () => {
 
 
   const handleEdit = async (id) => {
-    setEditingId(id); // critical
-    setShowAddForm(true);
-
-    const req = await authFetch(`${API_BASE_URL}/education/${id}`);
-
-    if (req.ok) {
-      const data = await req.json();
-      setFormData(data);
+    try {
+      setSaving(true);
+      setEditingId(id);
       setShowAddForm(true);
+
+      const req = await authFetch(`${API_BASE_URL}/education/${id}`);
+
+      if (req.ok) {
+        const data = await req.json();
+        setFormData(data);
+        setShowAddForm(true);
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+        });
+      }
+    } catch (error) {
+      console.log("Error loading education:", error);
+      queuePopup("Error", "Could not load education");
+    } finally {
+      setSaving(false);
     }
   }
   const handleAddForm = () => {
@@ -155,6 +197,7 @@ const EditEducation = () => {
 
   const performDelete = async (id) => {
     try {
+      setSaving(true);
       const response = await authFetch(`${API_BASE_URL}/education/${id}`, {
         method: "DELETE",
       });
@@ -165,13 +208,15 @@ const EditEducation = () => {
           resetForm();
           setShowAddForm(false);
         }
-        Alert.alert("Deleted", "Education entry deleted successfully");
+        queuePopup("Deleted", "Education entry deleted successfully");
       } else {
-        Alert.alert("Error", "Could not delete education");
+        queuePopup("Error", "Could not delete education");
       }
     } catch (error) {
       console.log("Error deleting education:", error);
-      Alert.alert("Error", "Could not delete education");
+      queuePopup("Error", "Could not delete education");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -184,17 +229,7 @@ const EditEducation = () => {
       return;
     }
 
-    Alert.alert("Delete Education", "Are you sure you want to delete this education entry?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => performDelete(id),
-      },
-    ]);
+    performDelete(id);
   };
 
   const handleBack = () => {
@@ -217,7 +252,7 @@ const EditEducation = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {!showAddForm && (
           <TouchableOpacity
             className="mx-4 mb-4 rounded-2xl border border-dashed border-gray-300 bg-white h-12 items-center justify-center"
@@ -243,12 +278,14 @@ const EditEducation = () => {
               onChange={(v) => handleChange("school", v)}
               placeholder="University name"
               icon="school"
+              required
             />
             <FormInputBox
               label="Degree"
               value={formData.degree}
               onChange={(v) => handleChange("degree", v)}
               placeholder="e.g., Bachelor of Science"
+              required
             />
 
             <FormInputBox
@@ -256,6 +293,7 @@ const EditEducation = () => {
               value={formData.field}
               onChange={(v) => handleChange("field", v)}
               placeholder="e.g., Computer Science"
+              required
             />
             <FormInputBox
               label="Location"
@@ -263,6 +301,7 @@ const EditEducation = () => {
               onChange={(v) => handleChange("location", v)}
               placeholder="City, State"
               icon="location-on"
+              required
             />
             <View className="flex-row gap-3">
               <View className="flex-1">
@@ -272,6 +311,7 @@ const EditEducation = () => {
                   onChange={(v) => handleChange("startDate", v)}
                   placeholder="Aug 2018"
                   icon="calendar-today"
+                  required
                 />
               </View>
               <View className="flex-1">
@@ -280,6 +320,7 @@ const EditEducation = () => {
                   value={formData.endDate}
                   onChange={(v) => handleChange("endDate", v)}
                   placeholder="May 2022"
+                  required
                 />
               </View>
             </View>
@@ -295,10 +336,11 @@ const EditEducation = () => {
             </View>
 
             <FormInputBox
-              label="GPA (optional)"
+              label="GPA"
               value={formData.gpa}
               onChange={(v) => handleChange("gpa", v)}
               placeholder="e.g., 3.8"
+              required
             />
             <FormInputBox
               label="Achievements & Activities"
@@ -306,9 +348,10 @@ const EditEducation = () => {
               onChange={(v) => handleChange("achievements", v)}
               placeholder="Honors, clubs, relevant coursework..."
               multiline
+              required
             />
             <TouchableOpacity
-              className={`${saving ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
@@ -339,7 +382,7 @@ const EditEducation = () => {
                   />
                   <Text className="text-gray-500 text-sm mt-1">{item.timeline}</Text>
                   <FormInputBox
-                    label="GPA (optional)"
+                    label="GPA"
                     value={item.gpa}
                     placeholder="e.g., 3.8"
                   />
@@ -366,6 +409,7 @@ const EditEducation = () => {
           <Text className="text-white text-base font-semibold">Save Changes</Text>
         </TouchableOpacity>
       </View> */}
+      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
     </View>
   );
 };

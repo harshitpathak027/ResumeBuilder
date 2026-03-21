@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import FormInputBox from "../../../components/ui/FormInputBox";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
+import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
+import { showErrorMessage } from "../../../utils/errorMessageBus";
 
 const EditWorkExperience = () => {
   const router = useRouter();
@@ -16,6 +18,8 @@ const EditWorkExperience = () => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [experienceItems, setExperienceItems] = useState([]);
+  const [queuedPopup, setQueuedPopup] = useState(null);
+  const scrollRef = useRef(null);
 
   const [formData, setFormData] = useState({
     jobTitle: "",
@@ -27,6 +31,30 @@ const EditWorkExperience = () => {
     description: "",
     sortOrder: 0,
   });
+
+  const getMissingFields = () => {
+    const missing = [];
+    if (!formData.jobTitle.trim()) missing.push("Job Title");
+    if (!formData.company.trim()) missing.push("Company");
+    if (!formData.location.trim()) missing.push("Location");
+    if (!formData.startDate.trim()) missing.push("Start Date");
+    if (!formData.endDate.trim()) missing.push("End Date");
+    if (!formData.description.trim()) missing.push("Description");
+    return missing;
+  };
+
+  const isFormComplete = getMissingFields().length === 0;
+
+  const queuePopup = (title, message) => {
+    setQueuedPopup({ title, message });
+  };
+
+  useEffect(() => {
+    if (!loading && !saving && queuedPopup) {
+      showErrorMessage(queuedPopup.title, queuedPopup.message);
+      setQueuedPopup(null);
+    }
+  }, [loading, saving, queuedPopup]);
 
   const resetForm = () => {
     setFormData({
@@ -58,7 +86,7 @@ const EditWorkExperience = () => {
       }
     } catch (error) {
       console.log("Error fetching work experience:", error);
-      Alert.alert("Error", "Could not load work experience");
+      queuePopup("Error", "Could not load work experience");
     } finally {
       setLoading(false);
     }
@@ -74,12 +102,13 @@ const EditWorkExperience = () => {
 
   const handleAddOrUpdate = async () => {
     if (!resumeId) {
-      Alert.alert("Error", "resumeId missing");
+      showErrorMessage("Error", "resumeId missing");
       return;
     }
 
-    if (!formData.jobTitle.trim() || !formData.company.trim()) {
-      Alert.alert("Validation", "Job title and company are required");
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
       return;
     }
 
@@ -111,16 +140,16 @@ const EditWorkExperience = () => {
       });
 
       if (response.ok) {
-        Alert.alert("Success", editingId ? "Position updated" : "Position added");
+        queuePopup("Success", editingId ? "Position updated" : "Position added");
         await fetchWorkExperience();
         resetForm();
         setShowAddForm(false);
       } else {
-        Alert.alert("Error", "Could not save position");
+        queuePopup("Error", "Could not save position");
       }
     } catch (error) {
       console.log("Error saving position:", error);
-      Alert.alert("Error", "Could not save position");
+      queuePopup("Error", "Could not save position");
     } finally {
       setSaving(false);
     }
@@ -128,6 +157,7 @@ const EditWorkExperience = () => {
 
   const handleEdit = async (id) => {
     try {
+      setSaving(true);
       const req = await authFetch(`${API_BASE_URL}/work-experience/${id}`);
 
       if (req.ok) {
@@ -144,15 +174,21 @@ const EditWorkExperience = () => {
           sortOrder: data.sortOrder || 0,
         });
         setShowAddForm(true);
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+        });
       }
     } catch (error) {
       console.log("Error loading position:", error);
-      Alert.alert("Error", "Could not load position");
+      queuePopup("Error", "Could not load position");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
     try {
+      setSaving(true);
       const response = await authFetch(`${API_BASE_URL}/work-experience/${id}`, {
         method: "DELETE",
       });
@@ -160,11 +196,13 @@ const EditWorkExperience = () => {
       if (response.ok) {
         await fetchWorkExperience();
       } else {
-        Alert.alert("Error", "Could not delete position");
+        queuePopup("Error", "Could not delete position");
       }
     } catch (error) {
       console.log("Error deleting position:", error);
-      Alert.alert("Error", "Could not delete position");
+      queuePopup("Error", "Could not delete position");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -182,11 +220,7 @@ const EditWorkExperience = () => {
   };
 
   if (loading) {
-    return (
-      <View className="flex-1 bg-gray-100 items-center justify-center">
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+    return <BookLoader visible={loading} />;
   }
 
   return (
@@ -208,7 +242,7 @@ const EditWorkExperience = () => {
         </View>
       </View>
 
-      <ScrollView className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View className="bg-blue-50 rounded-3xl p-5 mx-4 mb-4 border border-blue-100">
           <View className="flex-row items-start gap-3 mb-3">
             <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center">
@@ -248,6 +282,7 @@ const EditWorkExperience = () => {
               value={formData.jobTitle}
               onChange={(v) => handleChange("jobTitle", v)}
               placeholder="e.g., Software Engineer"
+              required
             />
             <FormInputBox
               label="Company"
@@ -255,12 +290,14 @@ const EditWorkExperience = () => {
               onChange={(v) => handleChange("company", v)}
               placeholder="Company name"
               icon="apartment"
+              required
             />
             <FormInputBox
               label="Location"
               value={formData.location}
               onChange={(v) => handleChange("location", v)}
               placeholder="City, State or Remote"
+              required
             />
 
             <View className="flex-row gap-3">
@@ -271,6 +308,7 @@ const EditWorkExperience = () => {
                   onChange={(v) => handleChange("startDate", v)}
                   placeholder="Jan 2022"
                   icon="calendar-today"
+                  required
                 />
               </View>
               <View className="flex-1">
@@ -279,6 +317,7 @@ const EditWorkExperience = () => {
                   value={formData.endDate}
                   onChange={(v) => handleChange("endDate", v)}
                   placeholder="Present"
+                  required
                 />
               </View>
             </View>
@@ -299,10 +338,11 @@ const EditWorkExperience = () => {
               onChange={(v) => handleChange("description", v)}
               placeholder="Describe your responsibilities and achievements..."
               multiline
+              required
             />
 
             <TouchableOpacity
-              className={`${saving ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
@@ -351,6 +391,7 @@ const EditWorkExperience = () => {
           <Text className="text-white text-base font-semibold">Save Changes</Text>
         </TouchableOpacity>
       </View>
+      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
     </View>
   );
 };

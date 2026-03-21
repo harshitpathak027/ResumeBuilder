@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import FormInputBox from "../../../components/ui/FormInputBox";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
+import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
+import { showErrorMessage } from "../../../utils/errorMessageBus";
 
 const TechChip = ({ label }) => (
   <View className="bg-gray-100 rounded-2xl px-3 py-1 mr-2 mb-2">
@@ -22,6 +24,8 @@ const EditProjects = () => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [queuedPopup, setQueuedPopup] = useState(null);
+  const scrollRef = useRef(null);
 
   const [formData, setFormData] = useState({
     projectName: "",
@@ -33,6 +37,31 @@ const EditProjects = () => {
     repoUrl: "",
     sortOrder: 0,
   });
+
+  const getMissingFields = () => {
+    const missing = [];
+    if (!formData.projectName.trim()) missing.push("Project Name");
+    if (!formData.description.trim()) missing.push("Description");
+    if (!formData.technologies.trim()) missing.push("Technologies Used");
+    if (!formData.startDate.trim()) missing.push("Start Date");
+    if (!formData.endDate.trim()) missing.push("End Date");
+    if (!formData.liveUrl.trim()) missing.push("Live URL");
+    if (!formData.repoUrl.trim()) missing.push("Repository URL");
+    return missing;
+  };
+
+  const isFormComplete = getMissingFields().length === 0;
+
+  const queuePopup = (title, message) => {
+    setQueuedPopup({ title, message });
+  };
+
+  useEffect(() => {
+    if (!loading && !saving && queuedPopup) {
+      showErrorMessage(queuedPopup.title, queuedPopup.message);
+      setQueuedPopup(null);
+    }
+  }, [loading, saving, queuedPopup]);
 
   const resetForm = () => {
     setFormData({
@@ -64,7 +93,7 @@ const EditProjects = () => {
       }
     } catch (error) {
       console.log("Error fetching projects:", error);
-      Alert.alert("Error", "Could not load projects");
+      queuePopup("Error", "Could not load projects");
     } finally {
       setLoading(false);
     }
@@ -80,12 +109,13 @@ const EditProjects = () => {
 
   const handleAddOrUpdate = async () => {
     if (!resumeId) {
-      Alert.alert("Error", "resumeId missing");
+      showErrorMessage("Error", "resumeId missing");
       return;
     }
 
-    if (!formData.projectName.trim() || !formData.description.trim()) {
-      Alert.alert("Validation", "Project name and description are required");
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
       return;
     }
 
@@ -117,16 +147,16 @@ const EditProjects = () => {
       });
 
       if (response.ok) {
-        Alert.alert("Success", editingId ? "Project updated" : "Project added");
+        queuePopup("Success", editingId ? "Project updated" : "Project added");
         await fetchProjects();
         resetForm();
         setShowAddForm(false);
       } else {
-        Alert.alert("Error", "Could not save project");
+        queuePopup("Error", "Could not save project");
       }
     } catch (error) {
       console.log("Error saving project:", error);
-      Alert.alert("Error", "Could not save project");
+      queuePopup("Error", "Could not save project");
     } finally {
       setSaving(false);
     }
@@ -134,6 +164,7 @@ const EditProjects = () => {
 
   const handleEdit = async (id) => {
     try {
+      setSaving(true);
       const req = await authFetch(`${API_BASE_URL}/projects/${id}`);
 
       if (req.ok) {
@@ -150,15 +181,21 @@ const EditProjects = () => {
           sortOrder: data.sortOrder || 0,
         });
         setShowAddForm(true);
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+        });
       }
     } catch (error) {
       console.log("Error loading project:", error);
-      Alert.alert("Error", "Could not load project");
+      queuePopup("Error", "Could not load project");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
     try {
+      setSaving(true);
       const response = await authFetch(`${API_BASE_URL}/projects/${id}`, {
         method: "DELETE",
       });
@@ -166,11 +203,13 @@ const EditProjects = () => {
       if (response.ok) {
         await fetchProjects();
       } else {
-        Alert.alert("Error", "Could not delete project");
+        queuePopup("Error", "Could not delete project");
       }
     } catch (error) {
       console.log("Error deleting project:", error);
-      Alert.alert("Error", "Could not delete project");
+      queuePopup("Error", "Could not delete project");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -188,11 +227,7 @@ const EditProjects = () => {
   };
 
   if (loading) {
-    return (
-      <View className="flex-1 bg-gray-100 items-center justify-center">
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+    return <BookLoader visible={loading} />;
   }
 
   return (
@@ -207,7 +242,7 @@ const EditProjects = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {!showAddForm && (
           <TouchableOpacity
             className="mx-4 mb-4 rounded-2xl border border-dashed border-gray-300 bg-white h-12 items-center justify-center"
@@ -232,6 +267,7 @@ const EditProjects = () => {
               value={formData.projectName}
               onChange={(v) => handleChange("projectName", v)}
               placeholder="e.g., Portfolio Website"
+              required
             />
             <FormInputBox
               label="Description"
@@ -239,12 +275,14 @@ const EditProjects = () => {
               onChange={(v) => handleChange("description", v)}
               placeholder="Describe what you built and the impact..."
               multiline
+              required
             />
             <FormInputBox
               label="Technologies Used"
               value={formData.technologies}
               onChange={(v) => handleChange("technologies", v)}
               placeholder="React, Node.js, PostgreSQL"
+              required
             />
 
             <View className="flex-row gap-3">
@@ -254,6 +292,7 @@ const EditProjects = () => {
                   value={formData.startDate}
                   onChange={(v) => handleChange("startDate", v)}
                   placeholder="Jan 2023"
+                  required
                 />
               </View>
               <View className="flex-1">
@@ -262,27 +301,30 @@ const EditProjects = () => {
                   value={formData.endDate}
                   onChange={(v) => handleChange("endDate", v)}
                   placeholder="Mar 2023"
+                  required
                 />
               </View>
             </View>
 
             <FormInputBox
-              label="Live URL (optional)"
+              label="Live URL"
               value={formData.liveUrl}
               onChange={(v) => handleChange("liveUrl", v)}
               placeholder="https://yourproject.com"
               icon="open-in-new"
+              required
             />
             <FormInputBox
-              label="Repository URL (optional)"
+              label="Repository URL"
               value={formData.repoUrl}
               onChange={(v) => handleChange("repoUrl", v)}
               placeholder="https://github.com/user/repo"
               icon="code"
+              required
             />
 
             <TouchableOpacity
-              className={`${saving ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
@@ -337,6 +379,7 @@ const EditProjects = () => {
           <Text className="text-white text-base font-semibold">Save Changes</Text>
         </TouchableOpacity>
       </View>
+      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
     </View>
   );
 };

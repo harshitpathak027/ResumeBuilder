@@ -1,11 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 import FormInputBox from '../../components/ui/FormInputBox';
 import { API_BASE_URL } from '../../constants/api';
 import { setAuthSession } from '../../utils/authStorage';
+import { showErrorMessage } from '../../utils/errorMessageBus';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -13,9 +14,19 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const getMissingFields = () => {
+    const missing = [];
+    if (!identifier.trim()) missing.push('Email or Username');
+    if (!password.trim()) missing.push('Password');
+    return missing;
+  };
+
+  const isFormComplete = getMissingFields().length === 0;
+
   const onLogin = async () => {
-    if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Missing Fields', 'Please enter email/username and password');
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage('Missing Fields', `Please fill: ${missingFields.join(', ')}`);
       return;
     }
 
@@ -46,14 +57,14 @@ export default function LoginScreen() {
         const errorMessage = isJson
           ? responseBody?.message || 'Invalid username/email or password'
           : responseBody || 'Invalid username/email or password';
-        Alert.alert('Login Failed', errorMessage);
+        showErrorMessage('Login Failed', errorMessage);
         return;
       }
 
       const token = isJson ? responseBody?.token : responseBody;
       const trimmedToken = token?.trim();
       if (!trimmedToken) {
-        Alert.alert('Login Failed', 'Token not received from server');
+        showErrorMessage('Login Failed', 'Token not received from server');
         return;
       }
 
@@ -83,17 +94,17 @@ export default function LoginScreen() {
         },
       });
 
-      Alert.alert('Login Success', 'You are now logged in');
+
       router.push('/');
     } catch (error) {
-      Alert.alert('Error', error?.message || 'Unable to connect to server');
+      showErrorMessage('Error', `${error?.message || 'Unable to connect to server'}\nAPI: ${API_BASE_URL}`);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <View className="flex-1 p-4 mt-8 bg-gray-50">
+    <View className="flex-1 p-4 mt-8  items-center justify-center bg-gray-50">
       <View className="flex-row items-center gap-3 mb-4">
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
           <MaterialIcons name="arrow-back" size={24} color="#0073D5" />
@@ -101,13 +112,14 @@ export default function LoginScreen() {
         <Text className="text-2xl font-bold">Login</Text>
       </View>
 
-      <View className="bg-white rounded-2xl p-4">
+      <View className="bg-white w-full rounded-2xl p-4">
         <FormInputBox
           label="Email or Username"
           value={identifier}
           onChange={setIdentifier}
           icon="person"
           placeholder="Enter email or username"
+          required
         />
         <FormInputBox
           label="Password"
@@ -115,10 +127,11 @@ export default function LoginScreen() {
           onChange={setPassword}
           icon="lock"
           placeholder="Enter password"
+          required
         />
 
         <TouchableOpacity
-          className="bg-blue-600 rounded-xl py-3 items-center justify-center mt-2"
+          className={`${isFormComplete ? 'bg-blue-600' : 'bg-blue-300'} rounded-xl py-3 items-center justify-center mt-2`}
           activeOpacity={0.85}
           onPress={onLogin}
           disabled={submitting}

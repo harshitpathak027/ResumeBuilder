@@ -1,7 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { showErrorMessage } from '../../utils/errorMessageBus';
 
 export default function HelpSupportScreen() {
   const router = useRouter();
@@ -10,11 +11,11 @@ export default function HelpSupportScreen() {
 
   const onSend = () => {
     if (!subject.trim() || !message.trim()) {
-      Alert.alert('Missing Details', 'Please enter subject and message');
+      showErrorMessage('Missing Details', 'Please enter subject and message');
       return;
     }
 
-    Alert.alert('Message Sent', 'Our support team will contact you at your registered email.');
+    showErrorMessage('Message Sent', 'Our support team will contact you at your registered email.');
     setSubject('');
     setMessage('');
   };

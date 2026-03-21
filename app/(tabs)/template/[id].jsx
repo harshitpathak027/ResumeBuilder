@@ -1,11 +1,14 @@
 import {useLocalSearchParams, useRouter} from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Linking, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Linking, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { API_BASE_URL } from "../../../constants/api";
 import { getAuthToken, getAuthUser, setAuthSession } from "../../../utils/authStorage";
 import { authFetch } from "../../../utils/authFetch";
 import * as FileSystem from "expo-file-system/legacy";
+import SnapResumeLoader from "../../../components/screen/SnapResumeLoader";
+import BookLoader from "../../../components/screen/BookLoader";
+import { showErrorMessage } from "../../../utils/errorMessageBus";
 
 const TemplateDetail = () => {
   const {id,name,description,resumeId: routeResumeId} = useLocalSearchParams();
@@ -13,6 +16,8 @@ const TemplateDetail = () => {
   const parsedRouteResumeId = Array.isArray(routeResumeId) ? Number(routeResumeId[0]) : Number(routeResumeId);
   const [resumeId, setResumeId] = useState(Number.isFinite(parsedRouteResumeId) && parsedRouteResumeId > 0 ? parsedRouteResumeId : null);
   const [creatingResume, setCreatingResume] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionType, setActionType] = useState(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [expandedTab, setExpandedTab] = useState(null);
   const templateName = Array.isArray(name) ? name[0] : name;
@@ -39,48 +44,31 @@ const TemplateDetail = () => {
 
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
-      Alert.alert("Error", "Cannot open this URL on your device");
+      showErrorMessage("Error", "Cannot open this URL on your device");
       return;
     }
     await Linking.openURL(url);
-  };
-
-  const openProtectedPreviewOnWeb = async (url) => {
-    const response = await authFetch(url, { method: "GET" });
-    if (!response.ok) {
-      if (response.status === 401) {
-        Alert.alert("Session expired", "Please login again");
-        router.replace("/login");
-        return;
-      }
-      Alert.alert("Error", "Unable to load preview");
-      return;
-    }
-
-    const html = await response.text();
-    if (typeof window !== "undefined") {
-      const htmlBlob = new Blob([html], { type: "text/html" });
-      const previewUrl = URL.createObjectURL(htmlBlob);
-      window.location.assign(previewUrl);
-      setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
-    }
   };
 
   const downloadProtectedPdfOnWeb = async (url) => {
     const response = await authFetch(url, { method: "GET" });
     if (!response.ok) {
       if (response.status === 401) {
-        Alert.alert("Session expired", "Please login again");
+        showErrorMessage("Session expired", "Please login again");
         router.replace("/login");
         return;
       }
-      Alert.alert("Error", "Unable to export PDF");
+      if (response.status === 403) {
+        showErrorMessage("Access denied", "You are not allowed to export this resume");
+        return;
+      }
+      showErrorMessage("Error", "Unable to export PDF");
       return;
     }
 
     const contentType = (response.headers.get("content-type") || "").toLowerCase();
     if (!contentType.includes("application/pdf")) {
-      Alert.alert("Error", "Failed to generate PDF");
+      showErrorMessage("Error", "Failed to generate PDF");
       return;
     }
 
@@ -98,7 +86,7 @@ const TemplateDetail = () => {
   const downloadProtectedFileOnMobile = async (url, fileName) => {
     const token = await getAuthToken();
     if (!token) {
-      Alert.alert("Session expired", "Please login again");
+      showErrorMessage("Session expired", "Please login again");
       router.replace("/login");
       return null;
     }
@@ -114,13 +102,18 @@ const TemplateDetail = () => {
     const contentType = String(contentTypeHeader).toLowerCase();
 
     if (result?.status === 401) {
-      Alert.alert("Session expired", "Please login again");
+      showErrorMessage("Session expired", "Please login again");
       router.replace("/login");
       return null;
     }
 
+    if (result?.status === 403) {
+      showErrorMessage("Access denied", "You are not allowed to export this resume");
+      return null;
+    }
+
     if (!result?.status || result.status >= 400) {
-      Alert.alert("Error", "Unable to download file");
+      showErrorMessage("Error", "Unable to download file");
       return null;
     }
 
@@ -132,35 +125,57 @@ const TemplateDetail = () => {
   };
 
   const handlePreview = async () => {
-    const ensuredResumeId = await ensureResumeId();
-    if (!ensuredResumeId) {
-      return;
-    }
+    setActionType("preview");
+    setActionLoading(true);
+    try {
+      const ensuredResumeId = await ensureResumeId();
+      if (!ensuredResumeId) {
+        return;
+      }
 
-    const previewUrl = `${API_BASE_URL}/resumes/${ensuredResumeId}/preview`;
-    if (Platform.OS === "web") {
-      await openProtectedPreviewOnWeb(previewUrl);
-      return;
-    }
+      const previewUrl = `${API_BASE_URL}/resumes/${ensuredResumeId}/preview`;
 
-    router.push({
-      pathname: "/template/preview",
-      params: { resumeId: String(ensuredResumeId), name: String(templateName || "Preview") },
-    });
+      const preCheck = await authFetch(previewUrl, { method: "GET" });
+      if (!preCheck.ok) {
+        if (preCheck.status === 401) {
+          showErrorMessage("Session expired", "Please login again");
+          router.replace("/login");
+          return;
+        }
+        if (preCheck.status === 403) {
+          showErrorMessage("Access denied", "You are not allowed to preview this resume");
+          return;
+        }
+        showErrorMessage("Error", `Unable to load preview (HTTP ${preCheck.status || "Unknown"})`);
+        return;
+      }
+
+      router.push({
+        pathname: Platform.OS === "web" ? "/(tabs)/template/web-preview" : "/(tabs)/template/preview",
+        params: { resumeId: String(ensuredResumeId), name: String(templateName || "Preview") },
+      });
+    } catch (error) {
+      showErrorMessage("Error", `${error?.message || "Unable to load preview"}\nAPI: ${API_BASE_URL}`);
+    } finally {
+      setActionLoading(false);
+      setActionType(null);
+    }
   };
 
   const handleExportPdf = async () => {
-    const ensuredResumeId = await ensureResumeId();
-    if (!ensuredResumeId) {
-      return;
-    }
-
-    if (Platform.OS === "web") {
-      await downloadProtectedPdfOnWeb(`${API_BASE_URL}/resumes/${ensuredResumeId}/export-pdf`);
-      return;
-    }
-
+    setActionType("export");
+    setActionLoading(true);
     try {
+      const ensuredResumeId = await ensureResumeId();
+      if (!ensuredResumeId) {
+        return;
+      }
+
+      if (Platform.OS === "web") {
+        await downloadProtectedPdfOnWeb(`${API_BASE_URL}/resumes/${ensuredResumeId}/export-pdf`);
+        return;
+      }
+
       const downloadResult = await downloadProtectedFileOnMobile(
         `${API_BASE_URL}/resumes/${ensuredResumeId}/export-pdf`,
         `resume-export-${ensuredResumeId}.pdf`
@@ -190,23 +205,26 @@ const TemplateDetail = () => {
             encoding: FileSystem.EncodingType.Base64,
           });
 
-          Alert.alert("Download Complete", "Resume PDF has been downloaded to the selected folder.");
+          showErrorMessage("Download Complete", "Resume PDF has been downloaded to the selected folder.");
           return;
         }
       }
 
       const fallbackUri = `${FileSystem.documentDirectory}${saveName}`;
       await FileSystem.copyAsync({ from: downloadResult.uri, to: fallbackUri });
-      Alert.alert("Download Complete", "Resume PDF saved in app documents.");
+      showErrorMessage("Download Complete", "Resume PDF saved in app documents.");
     } catch (error) {
       console.log("Mobile export error:", error?.message || error);
-      Alert.alert("Error", "Unable to export PDF");
+      showErrorMessage("Error", "Unable to export PDF");
+    } finally {
+      setActionLoading(false);
+      setActionType(null);
     }
   };
 
   const createResumeRecord = async (title) => {
     if (!Number.isFinite(parsedTemplateId) || parsedTemplateId <= 0) {
-      Alert.alert("Error", "Invalid template selected");
+      showErrorMessage("Error", "Invalid template selected");
       return null;
     }
 
@@ -232,7 +250,7 @@ const TemplateDetail = () => {
       }
       
       if (!userId) {
-        Alert.alert("Error", "User not authenticated");
+        showErrorMessage("Error", "User not authenticated");
         return null;
       }
 
@@ -260,11 +278,11 @@ const TemplateDetail = () => {
       }
 
       const errorMessage = data?.error || data?.message || "Failed to create resume record";
-      Alert.alert("Error", errorMessage);
+      showErrorMessage("Error", errorMessage);
       return null;
     } catch (e) {
       console.log("fetch error:", e.message);
-      Alert.alert("Error", "Unable to connect to server");
+      showErrorMessage("Error", "Unable to connect to server");
       return null;
     } finally {
       setCreatingResume(false);
@@ -276,7 +294,7 @@ const TemplateDetail = () => {
       return resumeId;
     }
     if (creatingResume) {
-      Alert.alert("Please wait", "Resume is still being prepared");
+      showErrorMessage("Please wait", "Resume is still being prepared");
       return null;
     }
     return createResumeRecord(resumeTitle.trim() || "My Resume");
@@ -318,7 +336,7 @@ const templateDetailTabs = [
     const handleCreateAndContinue = async () => {
       const trimmedTitle = resumeTitle.trim();
       if (!trimmedTitle) {
-        Alert.alert("Missing Title", "Please enter a resume title");
+        showErrorMessage("Missing Fields", "Please fill: Resume Title");
         return;
       }
 
@@ -330,23 +348,28 @@ const templateDetailTabs = [
     };
 
     if (!resumeId && creatingResume) {
-      return (
-        <View className="flex-1 bg-gray-100">
-          <View className="flex-row items-center gap-4 p-4 mb-2 bg-white">
-            <MaterialIcons name="arrow-back" size={24} className="mt-8" color="#0073D5" onPress={() => router.push("/Template")} />
-            <Text className="mt-8 text-xl">{templateName || "Template"}</Text>
-          </View>
+      return <BookLoader visible={creatingResume} />;
+    }
 
-          <View className="flex-1 px-4 items-center justify-center">
-            <View className="w-full bg-white rounded-2xl p-6 items-center">
-              <ActivityIndicator size="large" color="#0073D5" />
-              <Text className="mt-4 text-lg font-semibold">Creating your resume...</Text>
-              <Text className="mt-1 text-sm text-gray-500 text-center">
-                Please wait while we prepare your template.
-              </Text>
-            </View>
-          </View>
-        </View>
+    if (actionLoading) {
+      return (
+        <SnapResumeLoader
+          messages={
+            actionType === "export"
+              ? [
+                  "Generating your PDF export...",
+                  "Adjusting layout and alignment...",
+                  "Optimizing for print quality...",
+                  "Finalizing your download...",
+                ]
+              : [
+                  "Loading your resume preview...",
+                  "Rendering sections beautifully...",
+                  "Checking fonts and spacing...",
+                  "Preview is almost ready...",
+                ]
+          }
+        />
       );
     }
 
@@ -365,7 +388,7 @@ const templateDetailTabs = [
                 {templateDescription || "Build your professional resume with this template."}
               </Text>
 
-              <Text className="mt-5 mb-2 font-semibold">Resume Title</Text>
+              <Text className="mt-5 mb-2 font-semibold">Resume Title<Text className="text-red-500"> *</Text></Text>
               <TextInput
                 value={resumeTitle}
                 onChangeText={setResumeTitle}
@@ -375,7 +398,7 @@ const templateDetailTabs = [
               />
 
               <TouchableOpacity
-                className="mt-5 bg-blue-600 rounded-xl py-3 items-center justify-center"
+                className={`mt-5 ${resumeTitle.trim() ? 'bg-blue-600' : 'bg-blue-300'} rounded-xl py-3 items-center justify-center`}
                 activeOpacity={0.85}
                 onPress={handleCreateAndContinue}
                 disabled={creatingResume}
@@ -503,7 +526,7 @@ const templateDetailTabs = [
 
                         const ensuredResumeId = await ensureResumeId();
                         if (!ensuredResumeId) {
-                          Alert.alert("Please wait", "Resume is still being prepared");
+                          showErrorMessage("Please wait", "Resume is still being prepared");
                           return;
                         }
 

@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/utils/authStorage";
+import { getAuthUser } from "../../utils/authStorage";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 

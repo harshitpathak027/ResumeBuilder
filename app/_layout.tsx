@@ -3,7 +3,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColorScheme } from '../hooks/use-color-scheme';
+import ErrorMessageHost from '../components/ui/ErrorMessageHost';
 import '../global.css';
 
 export const unstable_settings = {
@@ -19,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
+      <ErrorMessageHost />
       <StatusBar style="dark" />
     </ThemeProvider>
   );

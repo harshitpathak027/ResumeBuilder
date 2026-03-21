@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
 import ProfileField from "../../../components/ui/ProfileField";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
+import { showErrorMessage } from "../../../utils/errorMessageBus";
+import BookLoader from "../../../components/screen/BookLoader";
 
 
 const EditProfileInformation = () => {
@@ -15,6 +17,7 @@ console.log("resumeID: ",resumeId)
 const title = name ? String(name) : "Personal Information";
 const [loading, setLoading] = useState(true);
 const [saving, setSaving] = useState(false);
+  const [queuedPopup, setQueuedPopup] = useState(null);
 
 const [formData, setFormData] = useState({
   firstName: "",
@@ -27,6 +30,27 @@ const [formData, setFormData] = useState({
   professionalSummary: "",
 });
 
+const getMissingFields = () => {
+  const missing = [];
+  if (!formData.firstName.trim()) missing.push("First Name");
+  if (!formData.lastName.trim()) missing.push("Last Name");
+  if (!formData.email.trim()) missing.push("Email Address");
+  return missing;
+};
+
+const isFormComplete = getMissingFields().length === 0;
+
+  const queuePopup = (title, message) => {
+    setQueuedPopup({ title, message });
+  };
+
+  useEffect(() => {
+    if (!loading && !saving && queuedPopup) {
+      showErrorMessage(queuedPopup.title, queuedPopup.message);
+      setQueuedPopup(null);
+    }
+  }, [loading, saving, queuedPopup]);
+
 const handleBack = () => {
   if (router.canGoBack()) {
     router.back();
@@ -36,72 +60,75 @@ const handleBack = () => {
 };
 
   const handleChange = (field, value) => {
-  setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
   const fetchProfileData = async () => {
-     if (!resumeId) {
-    setLoading(false);
-    return;
-  }
-  try{
-  const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`);
-    if (response.ok) {
-      const data = await response.json();
-      setFormData({
-        firstName: data.firstName || "",
-        lastName: data.lastName || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        location: data.location || "",
-        linkedinUrl: data.linkedinUrl || "",
-        websiteUrl: data.websiteUrl || "",
-        professionalSummary: data.professionalSummary || "",
+    if (!resumeId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFormData({
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          location: data.location || "",
+          linkedinUrl: data.linkedinUrl || "",
+          websiteUrl: data.websiteUrl || "",
+          professionalSummary: data.professionalSummary || "",
+        });
+      }
+    } catch (error) {
+      console.log("Error fetching profile:", error);
+      queuePopup("Error", "Could not load profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!resumeId) {
+      showErrorMessage("Error", "resumeId missing");
+      return;
+    }
+
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, resumeId: Number(resumeId) }),
       });
+
+      if (response.ok) {
+        queuePopup("Success", "Profile updated");
+        handleBack();
+      } else {
+        queuePopup("Error", "Update failed");
+      }
+    } catch (error) {
+      console.log("Error saving profile:", error);
+      queuePopup("Error", "Could not save profile");
+    } finally {
+      setSaving(false);
     }
-  }
-  catch (error) {
-    console.log("Error fetching profile:", error);
-    Alert.alert("Error", "Could not load profile");
-  } finally {
-    setLoading(false);
-  }
-}
-const handleSave = async () => {
-  if (!resumeId) {
-    Alert.alert("Error", "resumeId missing");
-    return;
-  }
+  };
 
-  if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim()) {
-    Alert.alert("Validation", "First name, last name, and email are required");
-    return;
-  }
-
-  try {
-    setSaving(true);
-    const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...formData, resumeId: Number(resumeId) }),
-    });
-
-    if (response.ok) {
-      Alert.alert("Success", "Profile updated");
-      handleBack();
-    } else {
-      Alert.alert("Error", "Update failed");
-    }
-  } catch (error) {
-    console.log("Error saving profile:", error);
-    Alert.alert("Error", "Could not save profile");
-  } finally {
-    setSaving(false);
-  }
-};
-
-useEffect(() => {
-  fetchProfileData();
-}, []);
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
 
   return (
     
@@ -124,6 +151,7 @@ useEffect(() => {
                 label="First Name"
                 value={formData.firstName}
                 onChange={(v) => handleChange("firstName", v)}
+                required
               />
             </View>
             <View className="flex-1">
@@ -131,6 +159,7 @@ useEffect(() => {
   label="Last Name"
   value={formData.lastName}
   onChange={(v) => handleChange("lastName", v)}
+  required
 />
             </View>
           </View>
@@ -142,6 +171,7 @@ useEffect(() => {
             value={formData.email}
             icon="email"
             onChange={(v) => handleChange("email", v)}
+            required
           />
           <ProfileField
             label="Phone Number"
@@ -186,10 +216,11 @@ useEffect(() => {
       </ScrollView>
 
       <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4 border-t border-gray-200">
-        <TouchableOpacity className="bg-blue-600 rounded-2xl h-14 items-center justify-center" onPress={handleSave} activeOpacity={0.9}>
+        <TouchableOpacity className={`${isFormComplete ? 'bg-blue-600' : 'bg-blue-300'} rounded-2xl h-14 items-center justify-center`} onPress={handleSave} activeOpacity={0.9}>
           <Text className="text-white text-lg font-semibold" >Save Changes</Text>
         </TouchableOpacity>
       </View>
+      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
     </View>
   );
 };

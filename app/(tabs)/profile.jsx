@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { clearAuthSession, getAuthUser } from '../../utils/authStorage';
+import { showErrorMessage } from '../../utils/errorMessageBus';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     await clearAuthSession();
     setAuthUser(null);
-    Alert.alert('Logged out', 'You have been logged out successfully');
+    showErrorMessage('Logged out', 'You have been logged out successfully');
     router.push('/login');
   };
 

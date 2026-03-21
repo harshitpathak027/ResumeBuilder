@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Animated, View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { Animated, View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { API_BASE_URL } from "../../constants/api";
 import { useRouter } from "expo-router";
 import { authFetch } from "../../utils/authFetch";
 import { clearAuthSession, getAuthToken, getAuthUser, setAuthSession } from "../../utils/authStorage";
+import { showErrorMessage } from "../../utils/errorMessageBus";
 
 
 const MyResumeList = ({ setResumeItem }) => {
@@ -125,7 +126,7 @@ const MyResumeList = ({ setResumeItem }) => {
             activeOpacity={0.8}
             onPress={() => {
                 if (!templateId) {
-                    Alert.alert("Error", "Template information missing for this resume");
+                    showErrorMessage("Error", "Template information missing for this resume");
                     return;
                 }
 
