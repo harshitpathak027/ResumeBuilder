@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { clearAuthSession, getAuthUser } from '../../utils/authStorage';
 import { showErrorMessage } from '../../utils/errorMessageBus';
+// import { getAuthUser } from '../../utils/authStorage';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -35,12 +36,11 @@ export default function ProfileScreen() {
     <View className="flex-1 p-4 mt-8">
       <Text className="text-2xl font-bold">Profile</Text>
       <View className="mt-4 gap-4 flex-row p-6 bg-white rounded-2xl shadow-black">
-        <View className="w-20 h-20 rounded-full bg-blue-100 ">
+        <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center">
           <MaterialIcons
             name='person'
             size={40}
             color={'#4F6BED'}
-            style={{ marginTop: 20, marginLeft: 20 }}
           />
         </View>
         <View className="flex-col justify-center">
@@ -85,6 +85,10 @@ export default function ProfileScreen() {
             onPress={() => {
               if (item.label === 'Logout') {
                 handleLogout();
+                return;
+              }
+              if (item.label === 'Account Settings') {
+                router.push('/account-settings');
                 return;
               }
 

@@ -15,7 +15,10 @@ export default function CustomNavbar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const handlePress = (tab) => {
-    router.push(tab.route);
+    if (pathname === tab.route || (tab.route === '/' && pathname === '/index')) {
+      return;
+    }
+    router.replace(tab.route);
   };
 
   const handlePressIn = () => {

@@ -2,9 +2,9 @@
   "expo": {
     "name": "ResumeBuider",
     "slug": "ResumeBuider",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/applogo.png",
     "scheme": "resumebuider",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -12,9 +12,11 @@
       "supportsTablet": true
     },
     "android": {
+      "usesCleartextTraffic": true,
+      "permissions": ["INTERNET"],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/logo.png"
+        "foregroundImage": "./assets/images/applogo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -23,14 +25,15 @@
     "web": {
       "output": "static",
       "bundler": "metro",
-      "favicon": "./assets/images/logo.png"
+      "favicon": "./assets/images/applogo.png"
     },
     "plugins": [
       "expo-router",
+      "./plugins/withAndroidCleartext",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
+          "image": "./assets/images/applogo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

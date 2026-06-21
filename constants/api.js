@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export const API_URLS = {
@@ -5,7 +6,7 @@ export const API_URLS = {
   LOCAL_ANDROID_EMULATOR: "http://10.0.2.2:8080",
   LOCAL_MOBILE_LAN: "http://192.168.1.100:8080",
   ANDROID_EMULATOR: "http://10.0.2.2:8080",
-  PRODUCTION: "https://resumebuilderbackend-production.up.railway.app",
+  PRODUCTION: "https://resumebuilderapi.mooo.com",
 };
 
 const LOCAL_API_BASE_URL = Platform.select({
