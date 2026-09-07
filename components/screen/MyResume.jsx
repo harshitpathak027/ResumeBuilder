@@ -4,7 +4,7 @@ const MyResume = ()=>{
     return(
         <>
         <View className="flex-row justify-between ">
-            <Text className="font-medium text-xl">My Resumes</Text>
+            <Text className="text-xl font-bold text-[#102A43]">Continue building</Text>
             <TouchableOpacity activeOpacity={0.8} >
 
             {/* <Text className="text-primary">View All</Text> */}

@@ -8,16 +8,19 @@ import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
+import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
+import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 
 const TechChip = ({ label }) => (
-  <View className="bg-gray-100 rounded-2xl px-3 py-1 mr-2 mb-2">
-    <Text className="text-gray-900 text-base font-semibold">{label}</Text>
+  <View className="mr-2 mb-2 rounded-xl bg-[#DDF3F0] px-3 py-1">
+    <Text className="text-base font-bold text-[#176B67]">{label}</Text>
   </View>
 );
 
 const EditProjects = () => {
   const router = useRouter();
-  const { resumeId } = useLocalSearchParams();
+  const { resumeId, draft: draftParam } = useLocalSearchParams();
+  const isDraft = !resumeId || draftParam === "true";
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -78,6 +81,12 @@ const EditProjects = () => {
   };
 
   const fetchProjects = async () => {
+    if (isDraft) {
+      const draft = await getResumeDraft();
+      setProjects(draft.projects || []);
+      setLoading(false);
+      return;
+    }
     if (!resumeId) {
       setLoading(false);
       return;
@@ -108,11 +117,6 @@ const EditProjects = () => {
   };
 
   const handleAddOrUpdate = async () => {
-    if (!resumeId) {
-      showErrorMessage("Error", "resumeId missing");
-      return;
-    }
-
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
@@ -121,6 +125,19 @@ const EditProjects = () => {
 
     try {
       setSaving(true);
+
+      if (isDraft) {
+        const current = await getResumeDraft();
+        const nextProjects = editingId
+          ? current.projects.map((item) => item.id === editingId ? { ...formData, id: editingId } : item)
+          : [...(current.projects || []), { ...formData, id: `project-${Date.now()}` }];
+        await saveResumeDraft({ projects: nextProjects });
+        setProjects(nextProjects);
+        resetForm();
+        setShowAddForm(false);
+        router.replace({ pathname: "/template/[id]", params: { id: String(current.templateId), draft: "true", name: current.title || "Resume" } });
+        return;
+      }
 
       const payload = {
         resume: { id: Number(resumeId) },
@@ -165,6 +182,15 @@ const EditProjects = () => {
   const handleEdit = async (id) => {
     try {
       setSaving(true);
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const item = draft.projects.find((entry) => entry.id === id);
+        if (item) setFormData(item);
+        setEditingId(id);
+        setShowAddForm(true);
+        setSaving(false);
+        return;
+      }
       const req = await authFetch(`${API_BASE_URL}/projects/${id}`);
 
       if (req.ok) {
@@ -196,6 +222,14 @@ const EditProjects = () => {
   const handleDelete = async (id) => {
     try {
       setSaving(true);
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const nextProjects = draft.projects.filter((item) => item.id !== id);
+        await saveResumeDraft({ projects: nextProjects });
+        setProjects(nextProjects);
+        setSaving(false);
+        return;
+      }
       const response = await authFetch(`${API_BASE_URL}/projects/${id}`, {
         method: "DELETE",
       });
@@ -218,6 +252,7 @@ const EditProjects = () => {
     setShowAddForm(true);
   };
 
+
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
@@ -231,34 +266,33 @@ const EditProjects = () => {
   }
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
-        <TouchableOpacity className="flex-row items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
-          <View>
-            <Text className="text-xl font-semibold text-gray-900">Projects</Text>
-            <Text className="text-gray-500 text-sm mt-1">{projects.length} projects added</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-[#F7F9FC]">
+      <TemplatePageHeader
+        eyebrow="Proof of work"
+        title="Projects"
+        accent="#E76F51"
+        accentSoft="#FDE2DD"
+        icon="rocket-launch"
+        onBack={handleBack}
+      />
 
-      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView ref={scrollRef} style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
         {!showAddForm && (
           <TouchableOpacity
-            className="mx-4 mb-4 rounded-2xl border border-dashed border-gray-300 bg-white h-12 items-center justify-center"
+            className="mb-4 h-12 items-center justify-center rounded-2xl border border-dashed border-[#F4A99A] bg-[#FFF7F5]"
             activeOpacity={0.85}
             onPress={handleAddForm}
           >
-            <Text className="text-gray-900 text-base font-semibold">+ Add New Project</Text>
+            <Text className="text-base font-bold text-[#C24F39]">+ Add New Project</Text>
           </TouchableOpacity>
         )}
 
         {showAddForm && (
-          <View className="bg-white rounded-3xl p-4 mx-4 mb-4 border border-gray-200">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-gray-900">{editingId ? "Edit Project" : "New Project"}</Text>
+          <View className="mb-3 rounded-[24px] border border-[#D9E2EC] bg-white p-4 shadow-sm">
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-[#102A43]">{editingId ? "Edit Project" : "New Project"}</Text>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
-                <Text className="text-gray-900 text-sm font-medium">Cancel</Text>
+                <Text className="text-sm font-bold text-[#E76F51]">Cancel</Text>
               </TouchableOpacity>
             </View>
 
@@ -324,12 +358,12 @@ const EditProjects = () => {
             />
 
             <TouchableOpacity
-              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-[#F2B7A9]" : "bg-[#E76F51]"} mt-1 h-12 flex-row items-center justify-center rounded-2xl`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
             >
-              <Text className="text-white text-base font-semibold">
+              <Text className="text-base font-bold text-white">
                 {editingId ? "Update Project" : "Add Project"}
               </Text>
             </TouchableOpacity>
@@ -337,14 +371,14 @@ const EditProjects = () => {
         )}
 
         {projects.map((project) => (
-          <FormSectionCard key={project.id} title={project.title}>
+          <FormSectionCard key={project.id} title={project.title} accent="#E76F51" icon="rocket-launch">
             <View className="flex-row items-start justify-between">
               <View className="flex-row items-start gap-3 flex-1">
-                <MaterialIcons name="drag-indicator" size={20} color="#9ca3af" />
+                <MaterialIcons name="drag-indicator" size={20} color="#829AB1" />
                 <View className="flex-1">
-                  <Text className="text-base font-semibold text-gray-900">{project.projectName}</Text>
-                  <Text className="text-gray-500 text-sm mt-1">{project.startDate} - {project.endDate}</Text>
-                  <Text className="text-gray-500 text-sm mt-2" numberOfLines={2}>
+                  <Text className="text-base font-bold text-[#102A43]">{project.projectName}</Text>
+                  <Text className="mt-1 text-sm text-[#486581]">{project.startDate} - {project.endDate}</Text>
+                  <Text className="mt-2 text-sm text-[#486581]" numberOfLines={2}>
                     {project.description}
                   </Text>
                   <View className="flex-row flex-wrap mt-3">
@@ -354,8 +388,8 @@ const EditProjects = () => {
                   </View>
                   {(project.liveUrl || project.repoUrl) ? (
                     <View className="flex-row items-center gap-4 mt-2">
-                      {project.liveUrl ? <Text className="text-blue-600 text-base">↗ Live Demo</Text> : null}
-                      {project.repoUrl ? <Text className="text-blue-600 text-base">⚓ Source Code</Text> : null}
+                      {project.liveUrl ? <Text className="text-base font-bold text-[#A76400]">Live Demo</Text> : null}
+                      {project.repoUrl ? <Text className="text-base font-bold text-[#A76400]">Source Code</Text> : null}
                     </View>
                   ) : null}
                 </View>
@@ -372,11 +406,20 @@ const EditProjects = () => {
             </View>
           </FormSectionCard>
         ))}
+        {!showAddForm && projects.length === 0 && (
+          <View className="items-center rounded-[24px] border border-dashed border-[#F4A99A] bg-[#FFF7F5] px-6 py-9">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#FDE2DD]">
+              <MaterialIcons name="rocket-launch" size={28} color="#E76F51" />
+            </View>
+            <Text className="mt-4 text-lg font-bold text-[#102A43]">Show what you built</Text>
+            <Text className="mt-1 text-center text-sm text-[#486581]">Show the work that makes your experience credible.</Text>
+          </View>
+        )}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4 border-t border-gray-200">
-        <TouchableOpacity className="bg-blue-600 rounded-2xl h-14 items-center justify-center" activeOpacity={0.9}>
-          <Text className="text-white text-base font-semibold">Save Changes</Text>
+      <View className="absolute bottom-0 left-0 right-0 border-t border-[#D9E2EC] bg-[#F7F9FC] px-4 py-4">
+        <TouchableOpacity className="h-14 flex-row items-center justify-center rounded-2xl bg-[#E76F51]" activeOpacity={0.9} onPress={showAddForm ? handleAddOrUpdate : isDraft ? () => router.back() : handleAddForm} disabled={saving}>
+          <Text className="text-base font-bold text-white">{showAddForm ? (editingId ? "Update Project" : "Add Project") : isDraft ? "Back to checklist" : "Add Project"}</Text>
         </TouchableOpacity>
       </View>
       {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}

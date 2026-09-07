@@ -6,13 +6,15 @@ import ProfileField from "../../../components/ui/ProfileField";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
+import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
 import BookLoader from "../../../components/screen/BookLoader";
+import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 
 
 const EditProfileInformation = () => {
   const router = useRouter();
-const { name, resumeId } = useLocalSearchParams();  
+const { name, resumeId, templateId, resumeTitle } = useLocalSearchParams();
 console.log("resumeID: ",resumeId)
 const title = name ? String(name) : "Personal Information";
 const [loading, setLoading] = useState(true);
@@ -72,7 +74,15 @@ const handleBack = () => {
     try {
       const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`);
       if (response.ok) {
-        const data = await response.json();
+        const responseText = await response.text();
+        let data = {};
+        if (responseText.trim()) {
+          try {
+            data = JSON.parse(responseText) || {};
+          } catch {
+            data = {};
+          }
+        }
         setFormData({
           firstName: data.firstName || "",
           lastName: data.lastName || "",
@@ -93,11 +103,6 @@ const handleBack = () => {
   };
 
   const handleSave = async () => {
-    if (!resumeId) {
-      showErrorMessage("Error", "resumeId missing");
-      return;
-    }
-
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
@@ -106,10 +111,22 @@ const handleBack = () => {
 
     try {
       setSaving(true);
-      const response = await authFetch(`${API_BASE_URL}/personal/${resumeId}`, {
+      const targetResumeId = Number(Array.isArray(resumeId) ? resumeId[0] : resumeId);
+
+      if (!Number.isFinite(targetResumeId) || targetResumeId <= 0) {
+        const draft = await saveResumeDraft({
+          title: String(Array.isArray(resumeTitle) ? resumeTitle[0] : resumeTitle || "My Resume").trim() || "My Resume",
+          templateId: Number(Array.isArray(templateId) ? templateId[0] : templateId) || null,
+          personal: formData,
+        });
+        router.replace({ pathname: "/template/[id]", params: { id: String(draft.templateId), draft: "true", name: draft.title } });
+        return;
+      }
+
+      const response = await authFetch(`${API_BASE_URL}/personal/${targetResumeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, resumeId: Number(resumeId) }),
+        body: JSON.stringify({ ...formData, resumeId: targetResumeId }),
       });
 
       if (response.ok) {
@@ -127,23 +144,29 @@ const handleBack = () => {
   };
 
   useEffect(() => {
+    if (!resumeId) {
+      getResumeDraft().then((draft) => {
+        if (draft.personal) setFormData(draft.personal);
+      });
+      setLoading(false);
+      return;
+    }
     fetchProfileData();
   }, []);
 
   return (
     
-    <View className="flex-1 bg-gray-100">
-      <View className="pt-12 px-4 pb-3 bg-white border-b  border-blue-100">
-        <TouchableOpacity className="flex-row  align-middle items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
-          <MaterialIcons className="flex align-middle text-center justify-center" name="arrow-back-ios" size={18} color="#6b7280" />
-          <View>
-            <Text className="text-xl font-semibold text-gray-900">{title}</Text>
-            <Text className="text-gray-500 text-sm mt-1">Basic details for your resume</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-[#F7F9FC]">
+      <TemplatePageHeader
+        eyebrow="Profile foundation"
+        title={title}
+        accent="#2A9D8F"
+        accentSoft="#DDF3F0"
+        icon="person"
+        onBack={handleBack}
+      />
 
-      <ScrollView className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
         <FormSectionCard title="Full Name">
           <View className="flex-row gap-3">
             <View className="flex-1">
@@ -215,9 +238,10 @@ const handleBack = () => {
 </FormSectionCard>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4 border-t border-gray-200">
-        <TouchableOpacity className={`${isFormComplete ? 'bg-blue-600' : 'bg-blue-300'} rounded-2xl h-14 items-center justify-center`} onPress={handleSave} activeOpacity={0.9}>
-          <Text className="text-white text-lg font-semibold" >Save Changes</Text>
+      <View className="absolute bottom-0 left-0 right-0 border-t border-[#D9E2EC] bg-[#F7F9FC] px-4 py-4">
+        <TouchableOpacity className={`${isFormComplete ? 'bg-[#E76F51]' : 'bg-[#F2B7A9]'} h-14 flex-row items-center justify-center rounded-2xl`} onPress={handleSave} activeOpacity={0.9}>
+          <Text className="text-lg font-bold text-white" >Save profile</Text>
+          <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
       </View>
       {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}

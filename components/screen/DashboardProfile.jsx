@@ -39,9 +39,10 @@ const DashboardProfile = () => {
     }, []);
 
     return (
-            <View className="flex m-2 text-left w-1/2">
-            <Text className="text-gray-600">{greeting}</Text>
-            <Text className="text-2xl font-bold">{user?.name || "User"}</Text>
+            <View className="m-0 flex-1">
+            <Text className="text-sm font-bold uppercase tracking-[1px] text-[#2A9D8F]">{greeting}</Text>
+            <Text className="mt-1 text-3xl font-bold text-[#102A43]">{user?.name || "User"}</Text>
+            <Text className="mt-1 text-sm text-[#486581]">Ready to sharpen your story?</Text>
             </View>
     )
 }

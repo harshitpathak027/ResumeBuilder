@@ -8,8 +8,8 @@ const ShimmerCard = ({ shimmerValue }) => {
 
   return (
     <View className="w-1/2 px-1 mb-4">
-      <View className="h-56 rounded-lg bg-white overflow-hidden">
-        <View className="h-3/4 bg-gray-200 rounded-lg overflow-hidden">
+      <View className="h-56 overflow-hidden rounded-[24px] border border-[#D9E2EC] bg-white">
+        <View className="h-3/4 overflow-hidden rounded-t-[24px] bg-[#DDEAF5]">
           <Animated.View
             pointerEvents="none"
             style={{
@@ -23,7 +23,7 @@ const ShimmerCard = ({ shimmerValue }) => {
           />
         </View>
         <View className="h-1/4 p-2 justify-center">
-          <View className="h-4 w-4/5 bg-gray-200 rounded-md mb-2 overflow-hidden">
+          <View className="mb-2 h-4 w-4/5 overflow-hidden rounded-md bg-[#DDF3F0]">
             <Animated.View
               pointerEvents="none"
               style={{
@@ -36,7 +36,7 @@ const ShimmerCard = ({ shimmerValue }) => {
               }}
             />
           </View>
-          <View className="h-3 w-2/3 bg-gray-200 rounded-md overflow-hidden">
+          <View className="h-3 w-2/3 overflow-hidden rounded-md bg-[#FDE2DD]">
             <Animated.View
               pointerEvents="none"
               style={{

@@ -8,10 +8,13 @@ import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
+import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
+import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 
 const EditWorkExperience = () => {
   const router = useRouter();
-  const { resumeId } = useLocalSearchParams();
+  const { resumeId, draft: draftParam } = useLocalSearchParams();
+  const isDraft = !resumeId || draftParam === "true";
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -71,6 +74,12 @@ const EditWorkExperience = () => {
   };
 
   const fetchWorkExperience = async () => {
+    if (isDraft) {
+      const draft = await getResumeDraft();
+      setExperienceItems(draft.experience || []);
+      setLoading(false);
+      return;
+    }
     if (!resumeId) {
       setLoading(false);
       return;
@@ -101,11 +110,6 @@ const EditWorkExperience = () => {
   };
 
   const handleAddOrUpdate = async () => {
-    if (!resumeId) {
-      showErrorMessage("Error", "resumeId missing");
-      return;
-    }
-
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
@@ -114,6 +118,19 @@ const EditWorkExperience = () => {
 
     try {
       setSaving(true);
+
+      if (isDraft) {
+        const current = await getResumeDraft();
+        const nextExperience = editingId
+          ? current.experience.map((item) => item.id === editingId ? { ...formData, id: editingId } : item)
+          : [...(current.experience || []), { ...formData, id: `experience-${Date.now()}` }];
+        await saveResumeDraft({ experience: nextExperience });
+        setExperienceItems(nextExperience);
+        resetForm();
+        setShowAddForm(false);
+        router.replace({ pathname: "/template/[id]", params: { id: String(current.templateId), draft: "true", name: current.title } });
+        return;
+      }
 
       const payload = {
         resume: { id: Number(resumeId) },
@@ -158,6 +175,15 @@ const EditWorkExperience = () => {
   const handleEdit = async (id) => {
     try {
       setSaving(true);
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const item = draft.experience.find((entry) => entry.id === id);
+        if (item) setFormData(item);
+        setEditingId(id);
+        setShowAddForm(true);
+        setSaving(false);
+        return;
+      }
       const req = await authFetch(`${API_BASE_URL}/work-experience/${id}`);
 
       if (req.ok) {
@@ -189,6 +215,14 @@ const EditWorkExperience = () => {
   const handleDelete = async (id) => {
     try {
       setSaving(true);
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const nextExperience = draft.experience.filter((item) => item.id !== id);
+        await saveResumeDraft({ experience: nextExperience });
+        setExperienceItems(nextExperience);
+        setSaving(false);
+        return;
+      }
       const response = await authFetch(`${API_BASE_URL}/work-experience/${id}`, {
         method: "DELETE",
       });
@@ -224,56 +258,39 @@ const EditWorkExperience = () => {
   }
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
-        <View className="flex-row items-start justify-between">
-          <TouchableOpacity className="flex-row items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
-            <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
-            <View>
-              <Text className="text-xl font-semibold text-gray-900">Work Experience</Text>
-              <Text className="text-gray-500 text-sm mt-1">{experienceItems.length} positions added</Text>
-            </View>
-          </TouchableOpacity>
+    <View className="flex-1 bg-[#F7F9FC]">
+      <TemplatePageHeader
+        eyebrow="Your track record"
+        title="Work Experience"
+        accent="#F4C95D"
+        accentSoft="#FFF8DE"
+        icon="work-history"
+        onBack={handleBack}
+        trailing={<View className="flex-row items-center gap-1 rounded-full bg-[#102A43] px-3 py-2"><MaterialIcons name="auto-fix-high" size={14} color="#F4C95D" /><Text className="text-sm font-bold text-white">AI</Text></View>}
+      />
 
-          <TouchableOpacity className="px-3 h-8 rounded-2xl border border-gray-300 flex-row items-center gap-1" activeOpacity={0.8}>
-            <MaterialIcons name="auto-fix-high" size={14} color="#3b82f6" />
-            <Text className="text-gray-700 text-sm font-medium">AI</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        <View className="bg-blue-50 rounded-3xl p-5 mx-4 mb-4 border border-blue-100">
-          <View className="flex-row items-start gap-3 mb-3">
-            <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center">
-              <MaterialIcons name="auto-fix-high" size={20} color="#3b82f6" />
+      <ScrollView ref={scrollRef} style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
+        <View className="mb-3 rounded-[22px] border border-[#A8DCD5] bg-[#DDF3F0] p-4">
+          <View className="mb-3 flex-row items-start gap-3">
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-[#102A43]">
+              <MaterialIcons name="auto-fix-high" size={20} color="#F4C95D" />
             </View>
             <View className="flex-1">
-              <Text className="text-lg font-semibold text-gray-900">AI Enhancement Available</Text>
-              <Text className="text-gray-500 text-sm mt-1">Let AI improve your job descriptions with impactful language.</Text>
+              <Text className="text-lg font-bold text-[#102A43]">AI Enhancement Available</Text>
+              <Text className="mt-1 text-sm text-[#486581]">Let AI improve your job descriptions with impactful language.</Text>
             </View>
           </View>
-          <TouchableOpacity className="self-start px-4 h-10 rounded-2xl bg-blue-600 items-center justify-center" activeOpacity={0.85}>
-            <Text className="text-white text-base font-semibold">Coming Soon</Text>
+          <TouchableOpacity className="h-10 items-center justify-center self-start rounded-xl bg-[#E76F51] px-4" activeOpacity={0.85}>
+            <Text className="text-base font-bold text-white">Coming Soon</Text>
           </TouchableOpacity>
         </View>
 
-        {!showAddForm && (
-          <TouchableOpacity
-            className="mx-4 mb-4 rounded-2xl border border-dashed border-green-500 bg-green-400 h-12 items-center justify-center"
-            activeOpacity={0.85}
-            onPress={handleAddForm}
-          >
-            <Text className="text-gray-900 text-base font-semibold">+ Add New Position</Text>
-          </TouchableOpacity>
-        )}
-
         {showAddForm && (
-          <View className="bg-white rounded-3xl p-4 mx-4 mb-4 border border-gray-200">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-gray-900">{editingId ? "Edit Position" : "New Position"}</Text>
+          <View className="mb-3 rounded-[24px] border border-[#D9E2EC] bg-white p-4 shadow-sm">
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-[#102A43]">{editingId ? "Edit Position" : "New Position"}</Text>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
-                <Text className="text-gray-900 text-sm font-medium">Cancel</Text>
+                <Text className="text-sm font-bold text-[#E76F51]">Cancel</Text>
               </TouchableOpacity>
             </View>
 
@@ -322,12 +339,12 @@ const EditWorkExperience = () => {
               </View>
             </View>
 
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-gray-900 text-base">I currently work here</Text>
+            <View className="mb-3 flex-row items-center justify-between rounded-2xl bg-[#F7F9FC] px-3 py-2.5">
+              <Text className="text-base text-[#102A43]">I currently work here</Text>
               <Switch
                 value={formData.isCurrent}
                 onValueChange={(v) => handleChange("isCurrent", v)}
-                trackColor={{ false: "#d1d5db", true: "#93c5fd" }}
+                trackColor={{ false: "#D9E2EC", true: "#A8DCD5" }}
                 thumbColor="#ffffff"
               />
             </View>
@@ -342,12 +359,12 @@ const EditWorkExperience = () => {
             />
 
             <TouchableOpacity
-              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-[#F2B7A9]" : "bg-[#E76F51]"} mt-1 h-12 flex-row items-center justify-center rounded-2xl`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
             >
-              <Text className="text-white text-base font-semibold">
+              <Text className="text-base font-bold text-white">
                 {editingId ? "Update Position" : "Add Position"}
               </Text>
             </TouchableOpacity>
@@ -355,20 +372,20 @@ const EditWorkExperience = () => {
         )}
 
         {experienceItems.map((item) => (
-          <FormSectionCard key={item.id} title={item.title}>
+          <FormSectionCard key={item.id} title={item.title} accent="#F4A261" icon="work-history">
             <View className="flex-row items-start justify-between">
               <View className="flex-row items-start gap-3 flex-1">
-                <MaterialIcons name="drag-indicator" size={20} color="#9ca3af" />
+                <MaterialIcons name="drag-indicator" size={20} color="#829AB1" />
                 <View className="flex-1">
-                  <Text className="text-base font-semibold text-gray-900">{item.jobTitle}</Text>
-                  <Text className="text-gray-500 text-sm mt-1">{item.company}</Text>
-                  <Text className="text-gray-500 text-sm mt-1">{item.startDate} - {item.endDate} · {item.location}</Text>
-                  <Text className="text-gray-500 text-sm mt-2" numberOfLines={2}>
+                  <Text className="text-base font-bold text-[#102A43]">{item.jobTitle}</Text>
+                  <Text className="mt-1 text-sm font-semibold text-[#486581]">{item.company}</Text>
+                  <Text className="mt-1 text-xs text-[#829AB1]">{item.startDate} - {item.endDate} · {item.location}</Text>
+                  <Text className="mt-2 text-sm text-[#486581]" numberOfLines={2}>
                     {item.description}
                   </Text>
                   {item.isCurrent && (
-                    <View className="self-start mt-3 px-3 py-1 rounded-2xl bg-green-100">
-                      <Text className="text-green-600 text-sm font-semibold">Current Position</Text>
+                    <View className="mt-3 self-start rounded-xl bg-[#DDF3F0] px-3 py-1">
+                      <Text className="text-sm font-bold text-[#176B67]">Current Position</Text>
                     </View>
                   )}
                 </View>
@@ -384,11 +401,20 @@ const EditWorkExperience = () => {
             </View>
           </FormSectionCard>
         ))}
+        {!showAddForm && experienceItems.length === 0 && (
+          <View className="items-center rounded-[24px] border border-dashed border-[#E8C86A] bg-[#FFF8DE] px-6 py-9">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#F4C95D]">
+              <MaterialIcons name="work-history" size={28} color="#102A43" />
+            </View>
+            <Text className="mt-4 text-lg font-bold text-[#102A43]">No experience added</Text>
+            <Text className="mt-1 text-center text-sm text-[#486581]">Add your first role and turn work into momentum.</Text>
+          </View>
+        )}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4 border-t border-gray-200">
-        <TouchableOpacity className="bg-blue-600 rounded-2xl h-14 items-center justify-center" activeOpacity={0.9}>
-          <Text className="text-white text-base font-semibold">Save Changes</Text>
+      <View className="absolute bottom-0 left-0 right-0 border-t border-[#D9E2EC] bg-[#F7F9FC] px-4 py-3">
+        <TouchableOpacity className="h-14 flex-row items-center justify-center rounded-2xl bg-[#E76F51]" activeOpacity={0.9} onPress={showAddForm ? handleAddOrUpdate : handleAddForm} disabled={saving}>
+          <Text className="text-base font-bold text-white">{showAddForm ? (editingId ? "Update Position" : "Add Position") : "Add Position"}</Text>
         </TouchableOpacity>
       </View>
       {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}

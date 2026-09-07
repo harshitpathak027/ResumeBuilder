@@ -39,7 +39,7 @@ export default function TabLayout() {
   const isAuthPage = pathname === '/login' || pathname === '/signup';
 
   if (isCheckingAuth) {
-    return <View className="flex-1 bg-gray-50" />;
+    return <View className="flex-1 bg-[#F7F9FC]" />;
   }
 
   if (!isLoggedIn && !isAuthPage) {

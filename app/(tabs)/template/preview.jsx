@@ -9,6 +9,7 @@ import SnapResumeLoader from '../../../components/screen/SnapResumeLoader';
 import { authFetch } from '../../../utils/authFetch';
 import { getAuthToken } from '../../../utils/authStorage';
 import { showErrorMessage } from '../../../utils/errorMessageBus';
+import TemplatePageHeader from '../../../components/ui/TemplatePageHeader';
 
 export default function ResumePreviewScreen() {
   const router = useRouter();
@@ -92,17 +93,18 @@ export default function ResumePreviewScreen() {
 
   if (loadError) {
     return (
-      <View className="flex-1 bg-white items-center justify-center p-4">
-        <Text className="text-red-600 text-center text-lg mb-4">{loadError}</Text>
-        <Text className="text-gray-600 text-xs text-center mb-4">
+      <View className="flex-1 items-center justify-center bg-[#F7F9FC] p-4">
+        <MaterialIcons name="error-outline" size={42} color="#E76F51" />
+        <Text className="mb-4 mt-3 text-center text-lg font-bold text-[#102A43]">{loadError}</Text>
+        <Text className="mb-4 text-center text-xs text-[#486581]">
           {previewUrl ? `URL: ${previewUrl}` : 'No URL'}
         </Text>
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => router.back()}
-          className="bg-blue-600 px-6 py-2 rounded-lg"
+          className="rounded-2xl bg-[#E76F51] px-6 py-3"
         >
-          <Text className="text-white font-semibold">Go Back</Text>
+          <Text className="font-bold text-white">Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -122,13 +124,16 @@ export default function ResumePreviewScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white">
-      <View className="flex-row items-center gap-3 p-4 pt-11 border-b border-gray-200">
-        <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#111827" />
-        </TouchableOpacity>
-        <Text className="text-lg font-semibold text-gray-900 flex-1">{title || 'Resume Preview'}</Text>
-      </View>
+    <View className="flex-1 bg-[#F7F9FC]">
+      <TemplatePageHeader
+        eyebrow="Final checkpoint"
+        title={title || 'Resume Preview'}
+        accent="#102A43"
+        accentSoft="#DDF3F0"
+        icon="visibility"
+        onBack={() => router.back()}
+        trailing={<View className="rounded-full bg-[#2A9D8F] px-3 py-2"><Text className="text-xs font-bold text-white">LIVE</Text></View>}
+      />
 
       {Platform.OS === 'web' ? (
         <View style={{ flex: 1 }}>

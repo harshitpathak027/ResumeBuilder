@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../../constants/api';
 import { authFetch } from '../../utils/authFetch';
 import { clearAuthSession, getAuthToken, getAuthUser } from '../../utils/authStorage';
 import { showErrorMessage } from '../../utils/errorMessageBus';
+import AppPageHeader from '../../components/ui/AppPageHeader';
 
 export default function AccountSettingsScreen() {
   const router = useRouter();
@@ -107,7 +108,7 @@ export default function AccountSettingsScreen() {
   };
 
   return (
-    <View className="flex-1 p-4 mt-8">
+    <View className="flex-1 bg-[#F7F9FC] px-5">
       <Modal
         transparent
         animationType="fade"
@@ -116,15 +117,15 @@ export default function AccountSettingsScreen() {
         onRequestClose={closeDeleteDialog}
       >
         <View className="flex-1 items-center justify-center px-8 bg-black/25">
-          <View className="bg-white w-full rounded-xl overflow-hidden">
-            <View className="px-6 pt-6 pb-5 items-center">
-              <Text className="text-gray-900 text-lg font-bold text-center mb-1">Delete account?</Text>
-              <Text className="text-gray-700 text-base text-center">
+          <View className="w-full overflow-hidden rounded-[22px] bg-white">
+            <View className="items-center px-6 pb-5 pt-6">
+              <Text className="mb-1 text-center text-lg font-bold text-[#102A43]">Delete account?</Text>
+              <Text className="text-center text-base text-[#486581]">
                 This will permanently delete your account and all resumes.
               </Text>
             </View>
 
-            <View className="h-px bg-gray-200" />
+            <View className="h-px bg-[#D9E2EC]" />
 
             <TouchableOpacity
               className="py-4 items-center"
@@ -133,10 +134,10 @@ export default function AccountSettingsScreen() {
               onPress={closeDeleteDialog}
               disabled={isDeletingAccount}
             >
-              <Text className="text-blue-600 text-base font-medium">Cancel</Text>
+              <Text className="text-base font-bold text-[#2A9D8F]">Cancel</Text>
             </TouchableOpacity>
 
-            <View className="h-px bg-gray-200" />
+            <View className="h-px bg-[#D9E2EC]" />
 
             <TouchableOpacity
               className="py-4 items-center"
@@ -148,74 +149,65 @@ export default function AccountSettingsScreen() {
               {isDeletingAccount ? (
                 <ActivityIndicator />
               ) : (
-                <Text className="text-red-600 text-base font-semibold">Delete</Text>
+                <Text className="text-base font-bold text-[#E76F51]">Delete</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <View className="flex-row items-center gap-3">
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.back()}
-          className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center"
-        >
-          <MaterialIcons name="arrow-back" size={20} color={'#4F6BED'} />
-        </TouchableOpacity>
-        <Text className="text-2xl font-bold">Account Settings</Text>
-      </View>
+      <AppPageHeader title="Account Settings" eyebrow="Manage your account" accent="#5B4BDB" accentSoft="#E6E4FF" icon="settings" onBack={() => router.back()} />
 
       {!authToken ? (
-        <View className="mt-6 bg-white rounded-2xl p-4">
-          <Text className="text-base font-semibold text-gray-900">You are not logged in</Text>
-          <Text className="text-gray-500 mt-1">Login to manage your account.</Text>
+        <View className="mt-6 rounded-[22px] border border-[#D9E2EC] bg-white p-5">
+          <Text className="text-base font-bold text-[#102A43]">You are not logged in</Text>
+          <Text className="mt-1 text-[#486581]">Login to manage your account.</Text>
 
           <TouchableOpacity
-            className="mt-4 bg-blue-600 rounded-xl py-3 items-center justify-center"
+            className="mt-4 items-center justify-center rounded-xl bg-[#E76F51] py-3"
             activeOpacity={0.85}
             onPress={() => router.replace('/login')}
           >
-            <Text className="text-white font-semibold">Go to Login</Text>
+            <Text className="font-bold text-white">Go to Login</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView className="mt-2" showsVerticalScrollIndicator={false}>
-          <View className="mt-6 bg-white rounded-2xl p-4">
-            <Text className="text-base font-semibold text-gray-900">Signed in as</Text>
-            <Text className="text-gray-500 mt-1">{authUser?.email || authUser?.name || 'User'}</Text>
+        <ScrollView style={{ width: '100%', maxWidth: 760, alignSelf: 'center' }} className="mt-2" contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+          <View className="mt-6 rounded-[22px] border border-[#D9E2EC] bg-white p-5">
+            <Text className="text-base font-bold text-[#102A43]">Signed in as</Text>
+            <Text className="mt-1 text-[#486581]">{authUser?.email || authUser?.name || 'User'}</Text>
           </View>
 
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleLogout}
-            className="flex-row items-center justify-between mt-6 p-4 bg-white rounded-2xl shadow-black"
+            className="mt-4 flex-row items-center justify-between rounded-[20px] border border-[#D9E2EC] bg-white p-4 shadow-sm"
           >
             <View className="flex-row items-center gap-4">
-              <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center">
-                <MaterialIcons name="logout" size={20} color={'#4F6BED'} />
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#DDF3F0]">
+                <MaterialIcons name="logout" size={20} color={'#2A9D8F'} />
               </View>
               <Text className="font-semibold">Logout</Text>
             </View>
-            <MaterialIcons name="arrow-right" size={24} color={'#4F6BED'} />
+            <MaterialIcons name="arrow-right" size={24} color={'#2A9D8F'} />
           </TouchableOpacity>
 
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={confirmDeleteAccount}
-            className="flex-row items-center justify-between mt-6 p-4 bg-white rounded-2xl shadow-black"
+            className="mt-4 flex-row items-center justify-between rounded-[20px] border border-[#D9E2EC] bg-white p-4 shadow-sm"
           >
             <View className="flex-row items-center gap-4">
-              <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center">
-                <MaterialIcons name="delete-forever" size={20} color={'#4F6BED'} />
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#FDE2DD]">
+                <MaterialIcons name="delete-forever" size={20} color={'#E76F51'} />
               </View>
               <View>
-                <Text className="font-semibold">Delete Account</Text>
-                <Text className="text-gray-500 text-xs mt-1">This cannot be undone</Text>
+                <Text className="font-bold text-[#102A43]">Delete Account</Text>
+                <Text className="mt-1 text-xs text-[#486581]">This cannot be undone</Text>
               </View>
             </View>
 
-            {isDeletingAccount ? <ActivityIndicator /> : <MaterialIcons name="arrow-right" size={24} color={'#4F6BED'} />}
+            {isDeletingAccount ? <ActivityIndicator color="#E76F51" /> : <MaterialIcons name="arrow-right" size={24} color={'#E76F51'} />}
           </TouchableOpacity>
         </ScrollView>
       )}

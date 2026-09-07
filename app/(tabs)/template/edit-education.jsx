@@ -5,14 +5,17 @@ import { Platform, ScrollView, Switch, Text, TextInput, TouchableOpacity, View }
 import FormInputBox from "../../../components/ui/FormInputBox";
 import FormSectionCard from "../../../components/ui/FormSectionCard";
 import BookLoader from "../../../components/screen/BookLoader";
+import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
+import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
 
 const EditEducation = () => {
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
-  const { resumeId } = useLocalSearchParams();
+  const { resumeId, draft: draftParam } = useLocalSearchParams();
+  const isDraft = !resumeId || draftParam === "true";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,6 +81,12 @@ const EditEducation = () => {
   };
 
   const fetchEducations = async () => {
+    if (isDraft) {
+      const draft = await getResumeDraft();
+      setEducationItems(draft.education || []);
+      setLoading(false);
+      return;
+    }
     if (!resumeId) {
       setLoading(false);
       return;
@@ -107,11 +116,6 @@ const EditEducation = () => {
   };
 
   const handleAddOrUpdate = async () => {
-    if (!resumeId) {
-      showErrorMessage("Error", "resumeId missing");
-      return;
-    }
-
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       showErrorMessage("Missing Fields", `Please fill: ${missingFields.join(", ")}`);
@@ -120,6 +124,20 @@ const EditEducation = () => {
 
     try {
       setSaving(true);
+
+      if (isDraft) {
+        const current = await getResumeDraft();
+        const nextEducation = editingId
+          ? current.education.map((item) => item.id === editingId ? { ...formData, id: editingId } : item)
+          : [...(current.education || []), { ...formData, id: `education-${Date.now()}` }];
+        await saveResumeDraft({ education: nextEducation });
+        queuePopup("Saved", "Education added to your draft");
+        resetForm();
+        setShowAddForm(false);
+        setEducationItems(nextEducation);
+        router.replace({ pathname: "/template/[id]", params: { id: String(current.templateId), draft: "true", name: current.title } });
+        return;
+      }
 
       const payload = {
         resume: { id: Number(resumeId) },
@@ -170,6 +188,14 @@ const EditEducation = () => {
       setEditingId(id);
       setShowAddForm(true);
 
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const item = draft.education.find((entry) => entry.id === id);
+        if (item) setFormData(item);
+        setSaving(false);
+        return;
+      }
+
       const req = await authFetch(`${API_BASE_URL}/education/${id}`);
 
       if (req.ok) {
@@ -198,6 +224,15 @@ const EditEducation = () => {
   const performDelete = async (id) => {
     try {
       setSaving(true);
+      if (isDraft) {
+        const draft = await getResumeDraft();
+        const nextEducation = draft.education.filter((item) => item.id !== id);
+        await saveResumeDraft({ education: nextEducation });
+        setEducationItems(nextEducation);
+        queuePopup("Deleted", "Education removed from your draft");
+        setSaving(false);
+        return;
+      }
       const response = await authFetch(`${API_BASE_URL}/education/${id}`, {
         method: "DELETE",
       });
@@ -241,34 +276,33 @@ const EditEducation = () => {
   };
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <View className="pt-12 px-4 pb-3 bg-white border-b border-blue-100">
-        <TouchableOpacity className="flex-row items-center gap-3" onPress={handleBack} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back-ios" size={18} color="#6b7280" />
-          <View>
-            <Text className="text-xl font-semibold text-gray-900">Education</Text>
-            <Text className="text-gray-500 text-sm mt-1">{educationItems.length} entries added</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-[#F7F9FC]">
+      <TemplatePageHeader
+        eyebrow="Your foundation"
+        title="Education"
+        accent="#3A86FF"
+        accentSoft="#DDEAF5"
+        icon="school"
+        onBack={handleBack}
+      />
 
-      <ScrollView ref={scrollRef} className="flex-1 pt-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView ref={scrollRef} style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
         {!showAddForm && (
           <TouchableOpacity
-            className="mx-4 mb-4 rounded-2xl border border-dashed border-gray-300 bg-white h-12 items-center justify-center"
+            className="mb-3 h-12 items-center justify-center rounded-[18px] border border-dashed border-[#9CC1FF] bg-[#F4F8FF]"
             activeOpacity={0.85}
             onPress={handleAddForm}
           >
-            <Text className="text-gray-900 text-base font-semibold">+ Add Education</Text>
+            <Text className="text-base font-bold text-[#2563C7]">+ Add Education</Text>
           </TouchableOpacity>
         )}
 
         {showAddForm && (
-          <View className="bg-white rounded-3xl p-4 mx-4 mb-4 border border-gray-200">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-gray-900">{editingId ? "Edit Education" : "New Education"}</Text>
+          <View className="mb-3 rounded-[24px] border border-[#D9E2EC] bg-white p-4 shadow-sm">
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-[#102A43]">{editingId ? "Edit Education" : "New Education"}</Text>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
-                <Text className="text-gray-900 text-sm font-medium">Cancel</Text>
+                <Text className="text-sm font-bold text-[#E76F51]">Cancel</Text>
               </TouchableOpacity>
             </View>
 
@@ -325,12 +359,12 @@ const EditEducation = () => {
               </View>
             </View>
 
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-gray-900 text-base">Currently studying here</Text>
+            <View className="mb-3 flex-row items-center justify-between rounded-2xl bg-[#F7F9FC] px-3 py-2.5">
+              <Text className="text-base text-[#102A43]">Currently studying here</Text>
               <Switch
                 value={formData.isCurrent}
                 onValueChange={(v) => handleChange("isCurrent", v)}
-                trackColor={{ false: "#d1d5db", true: "#93c5fd" }}
+                trackColor={{ false: "#D9E2EC", true: "#A8DCD5" }}
                 thumbColor="#ffffff"
               />
             </View>
@@ -351,12 +385,12 @@ const EditEducation = () => {
               required
             />
             <TouchableOpacity
-              className={`${saving || !isFormComplete ? "bg-blue-400" : "bg-blue-600"} mt-1 rounded-2xl h-12 items-center justify-center`}
+              className={`${saving || !isFormComplete ? "bg-[#F2B7A9]" : "bg-[#E76F51]"} mt-1 h-12 flex-row items-center justify-center rounded-2xl`}
               activeOpacity={0.9}
               onPress={handleAddOrUpdate}
               disabled={saving}
             >
-              <Text className="text-white text-base font-semibold">
+              <Text className="text-base font-bold text-white">
                 {editingId ? "Update Education" : "Add Education"}
               </Text>
             </TouchableOpacity>
@@ -364,10 +398,10 @@ const EditEducation = () => {
         )}
 
         {educationItems.map((item) => (
-          <FormSectionCard key={item.id} title={item.school}>
+          <FormSectionCard key={item.id} title={item.school} accent="#3A86FF" icon="school">
             <View className="flex-row items-start justify-between">
               <View className="flex-row items-start gap-3 flex-1">
-                <MaterialIcons name="drag-indicator" size={20} color="#9ca3af" />
+                <MaterialIcons name="drag-indicator" size={20} color="#829AB1" />
                 <View className="flex-1">
                   <FormInputBox
                     label="School/University"
@@ -380,13 +414,13 @@ const EditEducation = () => {
                     value={item.degree}
                     placeholder="e.g., Bachelor of Science"
                   />
-                  <Text className="text-gray-500 text-sm mt-1">{item.timeline}</Text>
+                  <Text className="mt-1 text-sm text-[#486581]">{item.timeline}</Text>
                   <FormInputBox
                     label="GPA"
                     value={item.gpa}
                     placeholder="e.g., 3.8"
                   />
-                  <Text className="text-gray-500 text-sm mt-2" numberOfLines={2}>
+                  <Text className="mt-2 text-sm text-[#486581]" numberOfLines={2}>
                     {item.details}
                   </Text>
                 </View>
@@ -402,13 +436,17 @@ const EditEducation = () => {
             </View>
           </FormSectionCard>
         ))}
+        {!showAddForm && educationItems.length === 0 && (
+          <View className="items-center rounded-[24px] border border-dashed border-[#9CC1FF] bg-[#F4F8FF] px-6 py-9">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#DDEAF5]">
+              <MaterialIcons name="school" size={28} color="#3A86FF" />
+            </View>
+            <Text className="mt-4 text-lg font-bold text-[#102A43]">Start your learning story</Text>
+            <Text className="mt-1 text-center text-sm text-[#486581]">Add your education to complete this resume section.</Text>
+          </View>
+        )}
       </ScrollView>
 
-      {/* <View className="absolute bottom-0 left-0 right-0 bg-white px-4 py-4 border-t border-gray-200">
-        <TouchableOpacity className="bg-blue-600 rounded-2xl h-14 items-center justify-center" activeOpacity={0.9}>
-          <Text className="text-white text-base font-semibold">Save Changes</Text>
-        </TouchableOpacity>
-      </View> */}
       {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
     </View>
   );

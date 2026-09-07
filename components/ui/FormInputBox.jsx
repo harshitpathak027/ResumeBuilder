@@ -11,33 +11,37 @@ const FormInputBox = ({ label,
   editable = true,
   required = false, }) => {
   return (
-    <View className="mb-3">
+    <View className="mb-4">
       {label ? (
-        <Text className="text-gray-500 text-base font-medium mb-1">
+        <Text className="mb-2 text-sm font-bold text-[#486581]">
           {label}
-          {required ? <Text className="text-red-500"> *</Text> : null}
+          {required ? <Text className="text-[#E76F51]"> *</Text> : null}
         </Text>
       ) : null}
       <View
-        className={`rounded-2xl bg-gray-100 px-4 flex-row items-center gap-3 ${
+        className={`flex-row items-center gap-3 rounded-[18px] border border-[#D9E2EC] bg-[#FFFFFF] px-3.5 ${
           multiline ? "min-h-28 py-3" : "h-14"
         }`}
       >
-        {icon ? <MaterialIcons  name={icon} size={20} color="#9ca3af" /> : null}
+        {icon ? (
+          <View className="h-8 w-8 items-center justify-center rounded-xl bg-[#DDF3F0]">
+            <MaterialIcons name={icon} size={18} color="#2A9D8F" />
+          </View>
+        ) : null}
       <TextInput
           style={[
-            { flex: 1, fontSize: 16, color: "#111827" },
+            { flex: 1, fontSize: 16, color: "#102A43" },
             Platform.OS === "web" ? { outlineStyle: "none" } : null,
           ]}
           value={value || ""}
           onChangeText={onChange}
           placeholder={placeholder || label}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor="#829AB1"
           multiline={multiline}
           editable={editable}
           keyboardType={keyboardType}
-          selectionColor="#111827"
-          cursorColor="#111827"
+          selectionColor="#E76F51"
+          cursorColor="#E76F51"
         />
       </View>
     </View>

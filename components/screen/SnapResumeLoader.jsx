@@ -2,10 +2,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
-const BRAND = "#0073D5";
-const LIGHT = "#E6F2FF";
-const DARK_TEXT = "#0A1F44";
-const MUTED = "#6B8CAE";
+const BRAND = "#E76F51";
+const LIGHT = "#DDF3F0";
+const DARK_TEXT = "#102A43";
+const MUTED = "#486581";
 
 const MESSAGES = [
   "Crafting your perfect resume...",
@@ -181,7 +181,7 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
   });
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-[#F7F9FC]">
       {bgFloats.map((circle, index) => {
         const rise = circle.anim.interpolate({
           inputRange: [0, 1],

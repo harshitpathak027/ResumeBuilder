@@ -17,9 +17,5 @@ const LOCAL_API_BASE_URL = Platform.select({
 
 const PRODUCTION_API_BASE_URL = API_URLS.PRODUCTION;
 
-// MANUAL SWITCH:
-// Use LOCAL while testing with your own backend on localhost/LAN.
-// export const API_BASE_URL = LOCAL_API_BASE_URL;
-
-// Use PRODUCTION for release testing / real users.
-export const API_BASE_URL = PRODUCTION_API_BASE_URL;
+// Use the local backend during development. Switch to PRODUCTION for release builds.
+export const API_BASE_URL = LOCAL_API_BASE_URL;

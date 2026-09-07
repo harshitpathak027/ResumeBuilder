@@ -1,14 +1,16 @@
 export const COLORS = {
-  primary: '#4F6BED',
-  accent: '#3B82F6',
+  primary: '#102A43',
+  accent: '#E76F51',
+  teal: '#2A9D8F',
+  gold: '#F4C95D',
   white: '#FFFFFF',
-  background: '#F8FAFC',
-  text: '#1E293B',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  success: '#22C55E',
-  error: '#EF4444',
-  warning: '#F59E0B',
+  background: '#F7F9FC',
+  text: '#102A43',
+  subtext: '#486581',
+  border: '#D9E2EC',
+  success: '#2A9D8F',
+  error: '#E76F51',
+  warning: '#F4C95D',
 };
 
 export const FONTS = {

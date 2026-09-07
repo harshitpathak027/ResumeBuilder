@@ -34,7 +34,7 @@ function ResumeLine({ widthPct, height, delay, docWidth, pulse }) {
   return (
     <Animated.View style={{ opacity: animatedOpacity, marginBottom: 13 + delayOpacity }}>
       <LinearGradient
-        colors={['#501eb4', '#b450ff']}
+        colors={['#2A9D8F', '#F4C95D']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[
@@ -137,10 +137,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fafafa',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#e0d9f5',
+    borderColor: '#D9E2EC',
     padding: 16,
     overflow: 'hidden',
-    shadowColor: '#7c3aed',
+    shadowColor: '#102A43',
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 16,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     right: 0,
     width: 28,
     height: 28,
-    backgroundColor: '#ede9fe',
+    backgroundColor: '#DDF3F0',
     borderBottomLeftRadius: 8,
   },
   linesWrap: {
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   cursor: {
     width: 2,
     height: 14,
-    backgroundColor: '#9333ea',
+    backgroundColor: '#E76F51',
     borderRadius: 1,
     marginTop: -4,
     marginLeft: 2,
