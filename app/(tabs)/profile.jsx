@@ -7,7 +7,6 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { clearAuthSession, getAuthUser } from '../../utils/authStorage';
 import { showErrorMessage } from '../../utils/errorMessageBus';
 import AppPageHeader from '../../components/ui/AppPageHeader';
-import MotionPressable from '../../components/ui/MotionPressable';
 // import { getAuthUser } from '../../utils/authStorage';
 
 export default function ProfileScreen() {
@@ -80,7 +79,7 @@ export default function ProfileScreen() {
           <View className="mt-7 flex-row items-end justify-between"><View><Text className="text-2xl font-bold text-[#102A43]">Your space</Text><Text className="mt-1 text-sm text-[#486581]">Everything you need, in one place.</Text></View><MaterialIcons name="auto-awesome" size={22} color="#F4C95D" /></View>
           <View className="mt-4 flex-row flex-wrap justify-between">
             {items.map((item) => (
-              <MotionPressable
+              <TouchableOpacity
                 key={item.label}
                 activeOpacity={0.85}
                 onPress={() => {
@@ -95,7 +94,7 @@ export default function ProfileScreen() {
                 <View className="flex-row items-start justify-between"><View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: item.soft }}><MaterialIcons name={item.icon} size={21} color={item.color} /></View><View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: item.soft }}><MaterialIcons name={item.label === 'Logout' ? 'logout' : 'arrow-forward'} size={16} color={item.color} /></View></View>
                 <Text numberOfLines={1} className="mt-5 font-bold text-[#102A43]">{item.label}</Text>
                 <Text numberOfLines={2} className="mt-1 min-h-[32px] text-xs leading-4 text-[#486581]">{item.description}</Text>
-              </MotionPressable>
+              </TouchableOpacity>
             ))}
           </View>
 

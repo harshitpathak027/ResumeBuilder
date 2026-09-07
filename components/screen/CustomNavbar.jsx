@@ -26,7 +26,7 @@ export default function CustomNavbar() {
   };
   return (
     <View
-      className="flex-row bg-white border-t border-gray-200 pt-2"
+      className="mx-3 mb-2 flex-row rounded-[24px] border border-[#D9E2EC] bg-white px-2 pt-2 shadow-sm"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
     >
       {tabs.map((tab) => {
@@ -34,16 +34,16 @@ export default function CustomNavbar() {
         return (
           <TouchableOpacity
             key={tab.name}
-            className="flex-1 items-center justify-center gap-1"
+            className={`flex-1 items-center justify-center gap-1 rounded-2xl py-2 ${isActive ? 'bg-[#FDE2DD]' : ''}`}
             onPressIn={handlePressIn}
             onPress={() => handlePress(tab)}
           >
             <MaterialIcons
               size={24}
               name={tab.icon}
-              color={isActive ? '#6366f1' : '#9ca3af'}
+              color={isActive ? '#E76F51' : '#829AB1'}
             />
-            <Text className={`text-xs font-medium ${isActive ? 'text-indigo-500' : 'text-gray-400'}`}>
+            <Text className={`text-xs font-bold ${isActive ? 'text-[#E76F51]' : 'text-[#829AB1]'}`}>
               {tab.label}
             </Text>
           </TouchableOpacity>
