@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.harshit.pathak.ResumeBuider"
+      "package": "com.harshitpathak.resumebuilder"
     },
     "web": {
       "output": "static",
