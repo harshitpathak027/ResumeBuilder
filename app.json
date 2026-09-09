@@ -2,18 +2,21 @@
   "expo": {
     "name": "ResumeBuider",
     "slug": "ResumeBuider",
-    "version": "1.0.2",
+    "version": "2.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/applogo.png",
     "scheme": "resumebuider",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.harshitpathak.resumebuilder"
     },
     "android": {
       "usesCleartextTraffic": true,
-      "permissions": ["INTERNET"],
+      "permissions": [
+        "INTERNET"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/applogo.png"
@@ -29,6 +32,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-build-properties",
       "./plugins/withAndroidCleartext",
       [
         "expo-splash-screen",
@@ -42,7 +46,8 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
