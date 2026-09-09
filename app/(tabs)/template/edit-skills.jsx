@@ -1,12 +1,26 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useEffect, useState } from "react";
-import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
-import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
+import { useEffect, useRef, useState } from "react";
+import { Animated, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import LottieView from "lottie-react-native";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
+import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
+
+const T = {
+  blue: "#3B82F6",
+  bluePressed: "#2563EB",
+  green: "#58CC02",
+  greenPressed: "#46A302",
+  greenBg: "#EEFCE2",
+  ink: "#141821",
+  fieldBg: "#F6F6F7",
+  fieldBorder: "#E6E7EA",
+  placeholder: "#A9ADB6",
+  caps: "#9AA0AC",
+  track: "#EDEFF2",
+};
 
 const EditSkills = () => {
   const router = useRouter();
@@ -14,13 +28,22 @@ const EditSkills = () => {
   const [skills, setSkills] = useState([]);
   const [originalSkillIds, setOriginalSkillIds] = useState([]);
   const [skillName, setSkillName] = useState("");
-  const [category, setCategory] = useState("Frontend");
-  const [activeCategory, setActiveCategory] = useState("All");
   const { resumeId, draft: draftParam } = useLocalSearchParams();
   const isDraft = !resumeId || draftParam === "true";
 
-  const categories = ["All", "Frontend", "Backend", "Languages", "Data"];
-  const suggestions = ["Kubernetes", "Redis", "Elasticsearch", "CI/CD"];
+  const popularSuggestions = ["Figma", "Wireframing", "User Testing", "React Native", "TypeScript"];
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Calculate dynamic completion percentage based on added skills
+  const progressPercent = Math.min(100, (skills.length / 3) * 100);
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progressPercent,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [progressPercent]);
 
   useEffect(() => {
     const loadSkills = async () => {
@@ -35,9 +58,9 @@ const EditSkills = () => {
         const data = await response.json();
         const loaded = (Array.isArray(data) ? data : []).map((skill) => ({
           id: skill.id,
-          name: skill.skillName || "",
-          category: skill.category || "Other",
-          rating: skill.rating || 1,
+          name: skill.skillName || skill.name || "",
+          category: skill.category || "General",
+          rating: skill.rating || 4,
         }));
         setSkills(loaded);
         setOriginalSkillIds(loaded.map((skill) => skill.id));
@@ -50,12 +73,15 @@ const EditSkills = () => {
 
   const addSkill = (name = skillName) => {
     const trimmed = name.trim();
-    if (!trimmed || skills.some((skill) => skill.name.toLowerCase() === trimmed.toLowerCase())) return;
-    setSkills((current) => [...current, { id: `skill-${Date.now()}`, name: trimmed, category, rating: 4 }]);
+    if (!trimmed) return;
+    if (skills.some((skill) => skill.name.toLowerCase() === trimmed.toLowerCase())) {
+      setSkillName("");
+      return;
+    }
+    setSkills((current) => [...current, { id: `skill-${Date.now()}`, name: trimmed, category: "General", rating: 4 }]);
     setSkillName("");
   };
 
-  const updateSkill = (id, field, value) => setSkills((current) => current.map((skill) => skill.id === id ? { ...skill, [field]: value } : skill));
   const removeSkill = (id) => setSkills((current) => current.filter((skill) => skill.id !== id));
 
   const handleSaveSkills = async () => {
@@ -75,11 +101,15 @@ const EditSkills = () => {
       const currentIds = skills.filter((skill) => skill.id).map((skill) => skill.id);
       const deleted = await Promise.all(originalSkillIds.filter((id) => !currentIds.includes(id)).map((id) => authFetch(`${API_BASE_URL}/skills/${id}`, { method: "DELETE" })));
       if (deleted.some((response) => !response.ok)) throw new Error("Could not delete a skill");
-      const saved = await Promise.all(skills.map((skill, index) => authFetch(skill.id ? `${API_BASE_URL}/skills/${skill.id}` : `${API_BASE_URL}/skills`, {
-        method: skill.id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skillName: skill.name.trim(), category: skill.category, rating: skill.rating, sortOrder: index, resume: { id: Number(resumeId) } }),
-      })));
+      const saved = await Promise.all(
+        skills.map((skill, index) =>
+          authFetch(skill.id ? `${API_BASE_URL}/skills/${skill.id}` : `${API_BASE_URL}/skills`, {
+            method: skill.id ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ skillName: skill.name.trim(), category: skill.category || "General", rating: skill.rating || 4, sortOrder: index, resume: { id: Number(resumeId) } }),
+          })
+        )
+      );
       if (saved.some((response) => !response.ok)) throw new Error("Could not save a skill");
       router.back();
     } catch (error) {
@@ -89,89 +119,206 @@ const EditSkills = () => {
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
+
   return (
-    <View className="flex-1 bg-[#F7F9FC]">
-      <TemplatePageHeader
-        eyebrow="Your toolkit"
-        title="Skills"
-        accent="#2A9D8F"
-        accentSoft="#DDF3F0"
-        icon="build"
-        onBack={() => router.back()}
-        trailing={<View className="flex-row items-center gap-1 rounded-full bg-[#F4C95D] px-3 py-2"><MaterialIcons name="auto-fix-high" size={14} color="#102A43" /><Text className="text-sm font-bold text-[#102A43]">AI</Text></View>}
-      />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Top Header Bar with Close Icon and Animated Slider */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 54, paddingBottom: 16 }}>
+        <TouchableOpacity activeOpacity={0.7} onPress={handleBack} style={{ padding: 4 }}>
+          <MaterialIcons name="close" size={26} color={T.caps} />
+        </TouchableOpacity>
 
-      <ScrollView style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
-        <View className="mb-4 h-12 flex-row items-center gap-2 rounded-2xl border border-[#D9E2EC] bg-[#FFFFFF] px-4">
-          <MaterialIcons name="search" size={20} color="#2A9D8F" />
-          <TextInput placeholder="Search skills..." placeholderTextColor="#829AB1" className="flex-1 text-base text-[#102A43]" />
+        {/* Dynamic Progress Slider */}
+        <View style={{ flex: 1, height: 12, borderRadius: 6, backgroundColor: T.track, overflow: "hidden" }}>
+          <Animated.View
+            style={{
+              height: "100%",
+              borderRadius: 6,
+              backgroundColor: T.green,
+              width: progressAnim.interpolate({
+                inputRange: [0, 100],
+                outputRange: ["0%", "100%"],
+              }),
+            }}
+          />
         </View>
+      </View>
 
-        <View className="mb-3 rounded-[22px] border border-[#A8DCD5] bg-[#DDF3F0] p-4">
-          <View className="flex-row items-start gap-3 mb-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-[#102A43]">
-              <MaterialIcons name="auto-fix-high" size={20} color="#F4C95D" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-lg font-bold text-[#102A43]">AI Skill Suggestions</Text>
-              <Text className="mt-1 text-sm text-[#486581]">Based on your experience, we recommend adding these skills.</Text>
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 140 }}>
+        {/* Mascot Stage & Speech Bubble */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 28 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 18, overflow: "hidden" }}>
+            <LottieView
+              source={require("../../../assets/images/lionblink.json")}
+              autoPlay
+              loop
+              style={{ width: "100%", height: "100%" }}
+            />
           </View>
 
-          <View className="flex-row flex-wrap">
-            {suggestions.map((item) => (
-              <TouchableOpacity key={item} className="mr-2 mb-2 rounded-2xl border border-[#A8DCD5] bg-white px-4 py-1" activeOpacity={0.85} onPress={() => addSkill(item)}>
-                <Text className="text-sm font-bold text-[#102A43]">+ {item}</Text>
+          <View style={{
+            flex: 1,
+            borderRadius: 20,
+            borderWidth: 1.5,
+            borderColor: T.fieldBorder,
+            backgroundColor: "#FFFFFF",
+            padding: 16,
+            shadowColor: "#000000",
+            shadowOpacity: 0.03,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 1,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: T.ink }}>Superpowers</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, fontWeight: "600", color: T.caps, lineHeight: 18 }}>
+              What are you naturally good at? Add your best skills!
+            </Text>
+          </View>
+        </View>
+
+        {/* Input Box & Plus Button Row */}
+        <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 8 }}>
+          ADD A SKILL
+        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <TextInput
+            value={skillName}
+            onChangeText={setSkillName}
+            onSubmitEditing={() => addSkill()}
+            placeholder="e.g. Figma, Python, UX Research"
+            placeholderTextColor={T.placeholder}
+            style={{
+              flex: 1,
+              backgroundColor: T.fieldBg,
+              borderWidth: 1,
+              borderColor: T.fieldBorder,
+              borderRadius: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 15,
+              fontWeight: "600",
+              color: T.ink,
+            }}
+          />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => addSkill()}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 16,
+              backgroundColor: T.blue,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <MaterialIcons name="add" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Added Skill Pill Badges */}
+        {skills.length > 0 && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 10 }}>
+              YOUR SKILLS ({skills.length})
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              {skills.map((skill) => (
+                <View
+                  key={String(skill.id)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    borderRadius: 999,
+                    borderWidth: 1.5,
+                    borderColor: T.fieldBorder,
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: T.ink }}>{skill.name}</Text>
+                  <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => removeSkill(skill.id)}>
+                    <MaterialIcons name="close" size={16} color={T.caps} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Popular Suggestions Box */}
+        <View
+          style={{
+            borderRadius: 20,
+            borderWidth: 1.5,
+            borderStyle: "dashed",
+            borderColor: T.fieldBorder,
+            backgroundColor: T.fieldBg,
+            padding: 16,
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 12, justifyContent: "center" }}>
+            POPULAR SUGGESTIONS
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            {popularSuggestions.map((item) => (
+              <TouchableOpacity
+                key={item}
+                activeOpacity={0.8}
+                onPress={() => addSkill(item)}
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  justifyContent: "center",
+                  borderColor: T.fieldBorder,
+                  backgroundColor: "#FFFFFF",
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                }}
+              >
+                <Text style={{ fontSize: 13, justifyContent:"content", fontWeight: "700", color: T.ink }}>+ {item}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
-
-        <View className="mb-3 rounded-[22px] border border-[#D9E2EC] bg-white p-4">
-          <Text className="mb-3 text-lg font-bold text-[#102A43]">Add New Skill</Text>
-          <View className="flex-row items-end gap-2">
-            <View className="flex-1">
-              <TextInput value={skillName} onChangeText={setSkillName} placeholder="Type a skill name..." placeholderTextColor="#829AB1" className="h-12 rounded-2xl border border-[#D9E2EC] px-4 text-base text-[#102A43]" />
-            </View>
-            <TouchableOpacity className="mb-3 h-12 w-12 items-center justify-center rounded-2xl bg-[#E76F51]" activeOpacity={0.9} onPress={() => addSkill()}>
-              <MaterialIcons name="add" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View className="mb-4 flex-row flex-wrap">
-          {categories.map((item) => (
-            <TouchableOpacity
-              key={item}
-              className={`mr-2 mb-2 h-10 items-center justify-center rounded-2xl border px-4 ${activeCategory === item ? "border-[#102A43] bg-[#102A43]" : "border-[#D9E2EC] bg-white"}`}
-              activeOpacity={0.85}
-              onPress={() => {
-                setActiveCategory(item);
-                if (item !== "All") setCategory(item);
-              }}
-            >
-              <Text className={`${activeCategory === item ? "text-white" : "text-[#486581]"} text-base font-bold`}>{item}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View className="mb-4 rounded-[22px] border border-[#D9E2EC] bg-white p-4">
-          {skills.filter((skill) => activeCategory === "All" || skill.category === activeCategory).map((skill) => (
-            <View key={skill.id} className="mb-3 flex-row items-center gap-2 rounded-2xl bg-[#F7F9FC] p-3">
-              <TextInput value={skill.name} onChangeText={(value) => updateSkill(skill.id, "name", value)} className="min-w-0 flex-1 text-base font-bold text-[#102A43]" />
-              <TouchableOpacity onPress={() => updateSkill(skill.id, "rating", Math.max(1, skill.rating - 1))}><Text className="text-lg text-[#D99B00]">−</Text></TouchableOpacity>
-              <Text className="text-sm font-bold text-[#D99B00]">{skill.rating}/5</Text>
-              <TouchableOpacity onPress={() => updateSkill(skill.id, "rating", Math.min(5, skill.rating + 1))}><Text className="text-lg text-[#D99B00]">+</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => removeSkill(skill.id)}><MaterialIcons name="delete-outline" size={19} color="#D56158" /></TouchableOpacity>
-            </View>
-          ))}
-          {skills.length === 0 && <Text className="py-4 text-center text-sm text-[#829AB1]">Add your first skill above.</Text>}
-        </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-[#D9E2EC] bg-[#F7F9FC] px-4 py-4">
-        <TouchableOpacity className="h-14 flex-row items-center justify-center rounded-2xl bg-[#E76F51]" activeOpacity={0.9} onPress={handleSaveSkills} disabled={saving}>
-          <Text className="text-base font-bold text-white">Save Changes</Text>
+      {/* Fixed Bottom Action 3D Button */}
+      <View style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 28,
+        borderTopWidth: 1,
+        borderTopColor: T.fieldBorder,
+      }}>
+        <TouchableOpacity activeOpacity={0.92} onPress={handleSaveSkills} disabled={saving}>
+          <View style={{ borderRadius: 20, paddingBottom: 4, backgroundColor: skills.length > 0 ? T.greenPressed : T.caps }}>
+            <View style={{
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 20,
+              paddingVertical: 16,
+              backgroundColor: skills.length > 0 ? T.green : T.fieldBorder,
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" }}>
+                FINALIZE RESUME
+              </Text>
+            </View>
+          </View>
         </TouchableOpacity>
       </View>
     </View>

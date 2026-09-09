@@ -1,21 +1,29 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { triggerVibration } from '../constant/vibration';
+import { MaterialIcons } from "@expo/vector-icons";
+import { usePathname, useRouter } from "expo-router";
+import { Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { triggerVibration } from "../constant/vibration";
+
+const T = {
+  activeBlue: "#1CB0F6",
+  inactiveIcon: "#9AA0AC",
+  borderTop: "#EAEBED",
+  bg: "#FFFFFF",
+};
 
 const tabs = [
-  { name: 'index', route: '/', label: 'Home', icon: 'home' },
-  { name: 'Templates', route: '/Template', label: 'Templates', icon: 'description' },
-  { name: 'profile', route: '/profile', label: 'Profile', icon: 'person' },
+  { name: "index", route: "/", label: "Home", icon: "school" },
+  { name: "Templates", route: "/Template", label: "Template", icon: "description" },
+  { name: "profile", route: "/profile", label: "PROFILE", icon: "person" },
 ];
 
 export default function CustomNavbar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+
   const handlePress = (tab) => {
-    if (pathname === tab.route || (tab.route === '/' && pathname === '/index')) {
+    if (pathname === tab.route || (tab.route === "/" && pathname === "/index")) {
       return;
     }
     router.replace(tab.route);
@@ -24,26 +32,62 @@ export default function CustomNavbar() {
   const handlePressIn = () => {
     triggerVibration("flash-click");
   };
+
   return (
     <View
-      className="mx-3 mb-2 flex-row rounded-[24px] border border-[#D9E2EC] bg-white px-2 pt-2 shadow-sm"
-      style={{ paddingBottom: Math.max(insets.bottom, 8) }}
+      style={{
+        flexDirection: "row",
+        backgroundColor: T.bg,
+        borderTopWidth: 2,
+        borderTopColor: T.borderTop,
+        paddingTop: 8,
+        paddingBottom: Math.max(insets.bottom + 4, 12),
+        paddingHorizontal: 8,
+      }}
     >
       {tabs.map((tab) => {
-        const isActive = pathname === tab.route || (tab.route === '/' && pathname === '/index');
+        const isActive =
+          pathname === tab.route ||
+          (tab.route === "/" && pathname === "/index") ||
+          (tab.route === "/Template" && pathname.startsWith("/Template"));
+
         return (
           <TouchableOpacity
             key={tab.name}
-            className={`flex-1 items-center justify-center gap-1 rounded-2xl py-2 ${isActive ? 'bg-[#FDE2DD]' : ''}`}
+            activeOpacity={0.8}
             onPressIn={handlePressIn}
             onPress={() => handlePress(tab)}
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justify: "center",
+              gap: 4,
+              paddingVertical: 4,
+            }}
           >
-            <MaterialIcons
-              size={24}
-              name={tab.icon}
-              color={isActive ? '#E76F51' : '#829AB1'}
-            />
-            <Text className={`text-xs font-bold ${isActive ? 'text-[#E76F51]' : 'text-[#829AB1]'}`}>
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 4,
+                borderRadius: 16,
+                backgroundColor: isActive ? "#E8F2FF" : "transparent",
+              }}
+            >
+              <MaterialIcons
+                size={24}
+                name={tab.icon}
+                color={isActive ? T.activeBlue : T.inactiveIcon}
+              />
+            </View>
+
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: "900",
+                letterSpacing: 0.8,
+                color: isActive ? T.activeBlue : T.inactiveIcon,
+              }}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -51,4 +95,4 @@ export default function CustomNavbar() {
       })}
     </View>
   );
-}
+} 

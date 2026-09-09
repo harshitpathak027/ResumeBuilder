@@ -1,22 +1,33 @@
-import { Animated, Easing, Image, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
 import { triggerVibration } from "../../components/constant/vibration";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ShimmerCard from "../../components/ui/ShimmerCard";
-import MotionPressable from "../../components/ui/MotionPressable";
 import { useRouter } from "expo-router";
 import { API_BASE_URL } from "../../constants/api";
 import { authFetch } from "../../utils/authFetch";
 import { clearAuthSession } from "../../utils/authStorage";
 
-const Template= ()=>{
-      const [templates, setTemplates] = useState([]);
+const T = {
+    green: "#58CC02",
+    greenPressed: "#46A302",
+    greenBg: "#EEFCE2",
+    ink: "#141821",
+    fieldBg: "#F6F6F7",
+    fieldBorder: "#EAEBED",
+    caps: "#9AA0AC",
+    orange: "#F5A623",
+    blue: "#3B82F6",
+    wireframeLine: "#E5E7EB",
+    wireframeHeader: "#D1D5DB"
+};
+
+const Template = () => {
+    const [templates, setTemplates] = useState([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [activeCategory, setActiveCategory] = useState("All");
     const router = useRouter();
-    const { width } = useWindowDimensions();
     const shimmerValue = useRef(new Animated.Value(0)).current;
     const shimmerItems = useMemo(() => Array.from({ length: 4 }, (_, index) => index), []);
 
@@ -36,14 +47,18 @@ const Template= ()=>{
                 throw new Error(`Request failed: ${response.status}`);
             }
             const data = await response.json();
-            setTemplates(Array.isArray(data) ? data : []);
+            const normalized = Array.isArray(data) && data.length > 0 ? data : [];
+            setTemplates(normalized);
+            if (normalized.length > 0) {
+                setSelectedTemplateId(normalized[0].id);
+            }
         } catch (fetchError) {
             setError(`Could not load templates from ${API_BASE_URL}/templates`);
             setTemplates([]);
         } finally {
             setLoading(false);
         }
-    }, [API_BASE_URL]);
+    }, [router]);
 
     useEffect(() => {
         fetchTemplates();
@@ -73,144 +88,233 @@ const Template= ()=>{
         };
     }, [loading, shimmerValue]);
 
-      const handlePress = async (id,name,description) => {
-        const parsedId = Number(id);
-        if (!Number.isFinite(parsedId) || parsedId <= 0) {
-            setError("Templates are unavailable right now. Please try again in a moment.");
-            return;
-        }
+    const handleSelectCard = async (id) => {
         await triggerVibration("tap");
-        console.log("Navigating to template with ID:", parsedId);
-                router.push({
-                    pathname: "/template/[id]",
-                    params: { id: String(parsedId), name: String(name), description: String(description || "") },
-                });
-  };
-    const templatesToRender = templates.length !== 0 ? templates : [{ id: "coming-soon", name: "Executive" }];
+        setSelectedTemplateId(id);
+    };
 
-    return(
-        <View className="flex-1 bg-[#F7F9FC]">
-            <View className="rounded-b-[32px] bg-[#172B4D] px-5 pb-8 pt-14">
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-3">
-                        <View className="h-12 w-12 overflow-hidden rounded-2xl bg-[#F4B942]">
-                            <Image
-                                source={require("../../assets/images/applogo.png")}
-                                style={{ width: "100%", height: "100%" }}
-                                resizeMode="cover"
-                            />
-                        </View>
-                        <View>
-                            <Text className="text-xs font-bold uppercase tracking-[2px] text-[#F4B942]">Resume Studio</Text>
-                            <Text className="mt-1 text-2xl font-bold text-white">Choose your look.</Text>
-                        </View>
-                    </View>
-                    <View className="h-12 w-12 items-center justify-center rounded-full bg-[#F4B942]">
-                        <LottieView
-                            source={require("../../assets/images/lionblink.json")}
-                            autoPlay
-                            loop
-                            style={{ width: 47, height: 47 }}
-                        />
+    const handleConfirmSelection = async () => {
+        const selected = templates.find((t) => t.id === selectedTemplateId) || templates[0];
+        if (!selected) return;
+
+        await triggerVibration("tap");
+        router.push({
+            pathname: "/template/[id]",
+            params: { id: String(selected.id), name: String(selected.name), description: String(selected.description || "") },
+        });
+    };
+
+    // Render wireframe UI matching reference image
+    const renderWireframePreview = (index, name = "") => {
+        const styleIndex = index % 4;
+
+        // 1. Modern Duo Wireframe
+        if (styleIndex === 0 || name.toLowerCase().includes("modern")) {
+            return (
+                <View style={{ width: "80%", height: "88%", backgroundColor: "#FFFFFF", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: T.fieldBorder, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+                    <View style={{ width: "45%", height: 8, backgroundColor: T.wireframeHeader, borderRadius: 4, marginBottom: 8 }} />
+                    <View style={{ width: "90%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2, marginBottom: 5 }} />
+                    <View style={{ width: "80%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2, marginBottom: 5 }} />
+                    <View style={{ width: "65%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2 }} />
+                </View>
+            );
+        }
+
+        // 2. Classic Pro Wireframe
+        if (styleIndex === 1 || name.toLowerCase().includes("classic")) {
+            return (
+                <View style={{ width: "80%", height: "88%", backgroundColor: "#FFFFFF", borderRadius: 10, padding: 10, alignItems: "center", borderWidth: 1, borderColor: T.fieldBorder, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.wireframeHeader, marginBottom: 8 }} />
+                    <View style={{ width: "55%", height: 6, backgroundColor: T.wireframeHeader, borderRadius: 3, marginBottom: 6 }} />
+                    <View style={{ width: "85%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2, marginBottom: 4 }} />
+                    <View style={{ width: "70%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2 }} />
+                </View>
+            );
+        }
+
+        // 3. The Sidebar Wireframe
+        if (styleIndex === 2 || name.toLowerCase().includes("sidebar")) {
+            return (
+                <View style={{ width: "80%", height: "88%", backgroundColor: "#FFFFFF", borderRadius: 10, padding: 8, flexDirection: "row", gap: 8, borderWidth: 1, borderColor: T.fieldBorder, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+                    <View style={{ width: "32%", height: "100%", backgroundColor: T.wireframeHeader, borderRadius: 6 }} />
+                    <View style={{ flex: 1, paddingTop: 4 }}>
+                        <View style={{ width: "70%", height: 6, backgroundColor: T.wireframeHeader, borderRadius: 3, marginBottom: 6 }} />
+                        <View style={{ width: "100%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2, marginBottom: 4 }} />
+                        <View style={{ width: "80%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2 }} />
                     </View>
                 </View>
-                <Text className="mt-5 max-w-[290px] text-sm leading-5 text-[#D7E1EC]">
-                    Build a sharper first impression with a layout made for your next chapter.
-                </Text>
-                <View className="mt-6 flex-row items-center gap-3 rounded-2xl bg-[#213B61] p-3">
-                    <MaterialIcons name="style" size={22} color="#F4B942" />
-                    <View className="flex-1">
-                            <Text className="text-xs font-bold uppercase tracking-widest text-[#D7E1EC]">Resume setup</Text>
-                        <Text className="mt-1 text-sm font-bold text-white">Choose a style to begin</Text>
-                    </View>
-                    <Text className="text-sm font-bold text-[#F4B942]">4 styles</Text>
-                </View>
+            );
+        }
+
+        // 4. Vibrant Tech Wireframe (With Blue Header Line)
+        return (
+            <View style={{ width: "80%", height: "88%", backgroundColor: "#FFFFFF", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: T.fieldBorder, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: T.blue }} />
+                <View style={{ width: "45%", height: 8, backgroundColor: T.wireframeHeader, borderRadius: 4, marginTop: 4, marginBottom: 8 }} />
+                <View style={{ width: "90%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2, marginBottom: 5 }} />
+                <View style={{ width: "75%", height: 4, backgroundColor: T.wireframeLine, borderRadius: 2 }} />
+            </View>
+        );
+    };
+
+    return (
+        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+            {/* Header Bar */}
+            <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justify: "space-between",
+                paddingHorizontal: 20,
+                paddingTop: 54,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: T.fieldBorder
+            }}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={{ padding: 4 }}>
+                    <MaterialIcons name="arrow-back" size={24} color={T.caps} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: T.ink }}>Pick a Style</Text>
+                <View style={{ width: 24 }} />
             </View>
 
-            {!loading && error === "" && (
-                <View style={{ width: "100%", maxWidth: 860, alignSelf: "center" }} className="px-5 pt-6">
-                    <View className="flex-row items-end justify-between">
-                        <View>
-                                <Text className="text-xs font-bold uppercase tracking-[2px] text-[#2A9D8F]">Your next step</Text>
-                                <Text className="mt-1 text-2xl font-bold text-[#102A43]">Pick your path</Text>
-                        </View>
-                        <MaterialIcons name="auto-awesome" size={22} color="#F4B942" />
-                    </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-5">
-                        {['All', 'Minimal', 'Executive', 'Creative'].map((category) => (
-                            <TouchableOpacity
-                                key={category}
-                                onPress={() => setActiveCategory(category)}
-                                className={`mr-2 rounded-xl border px-4 py-2.5 ${activeCategory === category ? 'border-[#2A9D8F] bg-[#2A9D8F]' : 'border-[#D9E2EC] bg-white'}`}
-                            >
-                                <Text className={`text-sm font-bold ${activeCategory === category ? 'text-white' : 'text-[#486581]'}`}>{category}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                    <View className="mt-6 flex-row items-center justify-between">
-                        <View>
-                            <Text className="text-base font-bold text-[#102A43]">Choose a style that feels like you</Text>
-                            <Text className="mt-1 text-xs text-[#486581]">You can always change it later.</Text>
-                        </View>
-                        <Text className="rounded-full bg-[#FFF4CE] px-3 py-1 text-xs font-bold text-[#856B00]">{templates.length || 1} available</Text>
-                    </View>
-                </View>
-            )}
-
-            {loading && (
-                <View className="mt-6 px-4">
-                    <View className="flex-row flex-wrap">
+            {/* Grid Content */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 120 }}>
+                {loading && (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
                         {shimmerItems.map((item) => (
                             <ShimmerCard key={item} shimmerValue={shimmerValue} />
                         ))}
                     </View>
-                </View>
-            )}
-            {!loading && error !== "" && <Text className="mx-5 mt-6 text-red-500">{error}</Text>}
+                )}
 
-            {!loading && (
-                <ScrollView className="mt-5 px-4" showsVerticalScrollIndicator={false}>
-                    <View style={{ width: "100%", maxWidth: 860, alignSelf: "center" }} className="flex-row flex-wrap justify-between pb-28">
-                        {templatesToRender.map((template, index) => (
-                            <View key={template.id ?? index} className="mb-4 w-[48.5%]">
-                                <View className={`flex-col overflow-hidden rounded-[24px] border bg-white shadow-sm ${index === 0 ? 'border-[#F4B942]' : 'border-[#D9E2EC]'}`}>
-                                    <MotionPressable className="h-full" haptic="impact-light" onPress={()=>handlePress(template.id,template.name,template.description)}>
-                                        <View className="h-44 overflow-hidden">
-                                            {index === 0 ? (
-                                                <Image
-                                                    source={require("../../assets/images/resume.jpg")}
-                                                    style={{ width: "100%", height: "100%" }}
-                                                    resizeMode="cover"
-                                                />
-                                            ) : (
-                                                <View className={`flex-1 items-center justify-center ${index % 2 === 0 ? 'bg-[#E6F5F2]' : 'bg-[#FFF0D9]'}`}>
-                                                    <View className="h-14 w-14 items-center justify-center rounded-[20px] bg-white">
-                                                        <MaterialIcons name="lock-outline" size={25} color={index % 2 === 0 ? '#2A9D8F' : '#E68C42'} />
-                                                    </View>
-                                                    <Text className="mt-2 text-xs font-bold uppercase tracking-widest text-[#102A43]">Coming soon</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                        <View className="min-h-[116px] justify-center p-4">
-                                            <View className="flex-row items-center justify-between">
-                                                <View className="flex-1 pr-2">
-                                                    {index === 0 && <Text className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[#E68C42]">Recommended</Text>}
-                                                    <Text numberOfLines={1} className="text-base font-bold text-[#102A43]">{template.name}</Text>
-                                                </View>
-                                                <View className="h-8 w-8 items-center justify-center rounded-full bg-[#E6F5F2]">
-                                                    <MaterialIcons name="arrow-forward" size={17} color="#2A9D8F" />
-                                                </View>
-                                            </View>
-                                            <Text numberOfLines={2} className="mt-1 text-xs leading-4 text-[#486581]">{template.description || "A sharp, polished starting point."}</Text>
-                                        </View>
-                                    </MotionPressable>
-                                </View>
-                            </View>
-                        ))}
+                {!loading && error !== "" && (
+                    <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: T.caps, textAlign: "center", marginBottom: 12 }}>{error}</Text>
+                        <TouchableOpacity onPress={fetchTemplates} style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: T.fieldBg, borderRadius: 12 }}>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: T.blue }}>Retry</Text>
+                        </TouchableOpacity>
                     </View>
-                </ScrollView>
-            )}
+                )}
+
+                {!loading && error === "" && (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 16 }}>
+                        {templates.map((template, index) => {
+                            const isSelected = selectedTemplateId === template.id;
+                            const isPremium = Boolean(template.isPremium) || index === 3;
+
+                            return (
+                                <TouchableOpacity
+                                    key={String(template.id)}
+                                    activeOpacity={0.9}
+                                    onPress={() => handleSelectCard(template.id)}
+                                    style={{
+                                        width: "48%",
+                                        height: 220,
+                                        borderRadius: 24,
+                                        borderWidth: isSelected ? 2.5 : 1.5,
+                                        borderColor: isSelected ? T.green : T.fieldBorder,
+                                        backgroundColor: isSelected ? T.greenBg : T.fieldBg,
+                                        overflow: "hidden",
+                                        justify: "space-between"
+                                    }}
+                                >
+                                    {/* Wireframe Preview Stage */}
+                                    <View style={{
+                                        height: 140,
+                                        backgroundColor: T.fieldBg,
+                                        alignItems: "center",
+                                        justify: "center",
+                                        paddingTop: 12,
+                                        position: "relative"
+                                    }}>
+                                        {/* Premium Pill Badge */}
+                                        {isPremium && (
+                                            <View style={{
+                                                position: "absolute",
+                                                top: 10,
+                                                right: 10,
+                                                backgroundColor: T.orange,
+                                                paddingHorizontal: 8,
+                                                paddingVertical: 3,
+                                                borderRadius: 8,
+                                                zIndex: 2
+                                            }}>
+                                                <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 }}>PREMIUM</Text>
+                                            </View>
+                                        )}
+
+                                        {renderWireframePreview(index, template.name)}
+                                    </View>
+
+                                    {/* Card Footer Title & Active Checkmark */}
+                                    <View style={{
+                                        paddingVertical: 14,
+                                        paddingHorizontal: 12,
+                                        alignItems: "center",
+                                        justify: "center",
+                                        backgroundColor: isSelected ? T.greenBg : "#FFFFFF",
+                                        flex: 1
+                                    }}>
+                                        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: "800", color: T.ink, textAlign: "center" }}>
+                                            {template.name}
+                                        </Text>
+
+                                        {isSelected && (
+                                            <View style={{
+                                                width: 18,
+                                                height: 18,
+                                                borderRadius: 9,
+                                                backgroundColor: T.green,
+                                                alignItems: "center",
+                                                justify: "center",
+                                                marginTop: 6
+                                            }}>
+                                                <MaterialIcons name="check" size={13} color="#FFFFFF" />
+                                            </View>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                )}
+            </ScrollView>
+
+            {/* Bottom Select Style Button */}
+            <View style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: "#FFFFFF",
+                paddingHorizontal: 20,
+                paddingTop: 12,
+                paddingBottom: 28,
+                borderTopWidth: 1,
+                borderTopColor: T.fieldBorder
+            }}>
+                <TouchableOpacity
+                    activeOpacity={0.92}
+                    onPress={handleConfirmSelection}
+                    disabled={!selectedTemplateId}
+                >
+                    <View style={{ borderRadius: 20, paddingBottom: 4, backgroundColor: T.greenPressed }}>
+                        <View style={{
+                            alignItems: "center",
+                            justify: "center",
+                            borderRadius: 20,
+                            paddingVertical: 16,
+                            backgroundColor: T.green
+                        }}>
+                            <Text style={{ fontSize: 15, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" }}>
+                                SELECT STYLE
+                            </Text>
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </View>
         </View>
-    )
-}
+    );
+};
+
 export default Template;

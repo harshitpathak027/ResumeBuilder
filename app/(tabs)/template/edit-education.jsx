@@ -1,19 +1,32 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
-import FormInputBox from "../../../components/ui/FormInputBox";
-import FormSectionCard from "../../../components/ui/FormSectionCard";
+import { Animated, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import LottieView from "lottie-react-native";
 import BookLoader from "../../../components/screen/BookLoader";
-import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
 import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
 
+const T = {
+  blue: "#3B82F6",
+  green: "#58CC02",
+  greenPressed: "#46A302",
+  greenBg: "#EEFCE2",
+  ink: "#141821",
+  fieldBg: "#F6F6F7",
+  fieldBorder: "#E6E7EA",
+  placeholder: "#A9ADB6",
+  caps: "#9AA0AC",
+  track: "#EDEFF2",
+  red: "#E5484D",
+  redBg: "#FDECEC",
+};
+
 const EditEducation = () => {
   const router = useRouter();
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(true);
   const { resumeId, draft: draftParam } = useLocalSearchParams();
   const isDraft = !resumeId || draftParam === "true";
 
@@ -28,26 +41,40 @@ const EditEducation = () => {
     school: "",
     degree: "",
     field: "",
-    location: "",
     startDate: "",
     endDate: "",
-    isCurrent: false,
     gpa: "",
     achievements: "",
-    sortOrder: 0,
-    resume: { id: Number(resumeId) }
   });
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Track progress on per-field basis
+  const trackedFields = [
+    formData.school,
+    formData.degree,
+    formData.startDate,
+    formData.endDate,
+    formData.gpa,
+  ];
+
+  const filledCount = trackedFields.filter((f) => String(f || "").trim().length > 0).length;
+  const progressPercent = (filledCount / trackedFields.length) * 100;
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progressPercent,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [progressPercent]);
 
   const getMissingFields = () => {
     const missing = [];
-    if (!formData.school?.trim()) missing.push("School/University");
-    if (!formData.degree?.trim()) missing.push("Degree");
-    if (!formData.field?.trim()) missing.push("Field of Study");
-    if (!formData.location?.trim()) missing.push("Location");
+    if (!formData.school?.trim()) missing.push("Institution Name");
+    if (!formData.degree?.trim()) missing.push("Degree / Major");
     if (!formData.startDate?.trim()) missing.push("Start Date");
     if (!formData.endDate?.trim()) missing.push("End Date");
-    if (!formData.gpa?.trim()) missing.push("GPA");
-    if (!formData.achievements?.trim()) missing.push("Achievements & Activities");
     return missing;
   };
 
@@ -69,13 +96,10 @@ const EditEducation = () => {
       school: "",
       degree: "",
       field: "",
-      location: "",
       startDate: "",
       endDate: "",
-      isCurrent: false,
       gpa: "",
       achievements: "",
-
     });
     setEditingId(null);
   };
@@ -107,6 +131,7 @@ const EditEducation = () => {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchEducations();
   }, []);
@@ -128,14 +153,12 @@ const EditEducation = () => {
       if (isDraft) {
         const current = await getResumeDraft();
         const nextEducation = editingId
-          ? current.education.map((item) => item.id === editingId ? { ...formData, id: editingId } : item)
+          ? current.education.map((item) => (item.id === editingId ? { ...formData, id: editingId } : item))
           : [...(current.education || []), { ...formData, id: `education-${Date.now()}` }];
         await saveResumeDraft({ education: nextEducation });
         queuePopup("Saved", "Education added to your draft");
         resetForm();
-        setShowAddForm(false);
         setEducationItems(nextEducation);
-        router.replace({ pathname: "/template/[id]", params: { id: String(current.templateId), draft: "true", name: current.title } });
         return;
       }
 
@@ -143,20 +166,17 @@ const EditEducation = () => {
         resume: { id: Number(resumeId) },
         school: formData.school,
         degree: formData.degree,
-        field: formData.field,
-        location: formData.location,
+        field: formData.field || formData.degree,
+        location: "N/A",
         startDate: formData.startDate,
         endDate: formData.endDate,
-        isCurrent: formData.isCurrent,
+        isCurrent: false,
         gpa: formData.gpa,
-        achievements: formData.achievements,
+        achievements: formData.achievements || "",
         sortOrder: 0,
       };
 
-      const url = editingId
-        ? `${API_BASE_URL}/education/${editingId}`
-        : `${API_BASE_URL}/education`;
-
+      const url = editingId ? `${API_BASE_URL}/education/${editingId}` : `${API_BASE_URL}/education`;
       const method = editingId ? "PUT" : "POST";
 
       const response = await authFetch(url, {
@@ -169,7 +189,6 @@ const EditEducation = () => {
         queuePopup("Success", editingId ? "Education updated" : "Education added");
         await fetchEducations();
         resetForm();
-        setShowAddForm(false);
       } else {
         queuePopup("Error", "Could not save education");
       }
@@ -181,45 +200,20 @@ const EditEducation = () => {
     }
   };
 
-
-  const handleEdit = async (id) => {
-    try {
-      setSaving(true);
-      setEditingId(id);
-      setShowAddForm(true);
-
-      if (isDraft) {
-        const draft = await getResumeDraft();
-        const item = draft.education.find((entry) => entry.id === id);
-        if (item) setFormData(item);
-        setSaving(false);
-        return;
-      }
-
-      const req = await authFetch(`${API_BASE_URL}/education/${id}`);
-
-      if (req.ok) {
-        const data = await req.json();
-        setFormData(data);
-        setShowAddForm(true);
-        requestAnimationFrame(() => {
-          scrollRef.current?.scrollTo?.({ y: 0, animated: true });
-        });
-      }
-    } catch (error) {
-      console.log("Error loading education:", error);
-      queuePopup("Error", "Could not load education");
-    } finally {
-      setSaving(false);
-    }
-  }
-  const handleAddForm = () => {
-    resetForm();
-    // console.log(showAddForm);
-    setShowAddForm(true)
-    // console.log(showAddForm);
-    setEditingId("");
-  }
+  const handleEdit = async (item) => {
+    setEditingId(item.id);
+    setShowAddForm(true);
+    setFormData({
+      school: item.school || "",
+      degree: item.degree || "",
+      field: item.field || "",
+      startDate: item.startDate || "",
+      endDate: item.endDate || "",
+      gpa: item.gpa || "",
+      achievements: item.achievements || "",
+    });
+    scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+  };
 
   const performDelete = async (id) => {
     try {
@@ -241,9 +235,8 @@ const EditEducation = () => {
         await fetchEducations();
         if (editingId === id) {
           resetForm();
-          setShowAddForm(false);
         }
-        queuePopup("Deleted", "Education entry deleted successfully");
+        queuePopup("Deleted", "Education entry deleted");
       } else {
         queuePopup("Error", "Could not delete education");
       }
@@ -263,7 +256,6 @@ const EditEducation = () => {
       }
       return;
     }
-
     performDelete(id);
   };
 
@@ -276,178 +268,258 @@ const EditEducation = () => {
   };
 
   return (
-    <View className="flex-1 bg-[#F7F9FC]">
-      <TemplatePageHeader
-        eyebrow="Your foundation"
-        title="Education"
-        accent="#3A86FF"
-        accentSoft="#DDEAF5"
-        icon="school"
-        onBack={handleBack}
-      />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Header Bar with Animated Progress Slider */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 54, paddingBottom: 16 }}>
+        <TouchableOpacity activeOpacity={0.7} onPress={handleBack} style={{ padding: 4 }}>
+          <MaterialIcons name="close" size={26} color={T.caps} />
+        </TouchableOpacity>
 
-      <ScrollView ref={scrollRef} style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
-        {!showAddForm && (
-          <TouchableOpacity
-            className="mb-3 h-12 items-center justify-center rounded-[18px] border border-dashed border-[#9CC1FF] bg-[#F4F8FF]"
-            activeOpacity={0.85}
-            onPress={handleAddForm}
-          >
-            <Text className="text-base font-bold text-[#2563C7]">+ Add Education</Text>
-          </TouchableOpacity>
+        {/* Dynamic Progress Slider Bar */}
+        <View style={{ flex: 1, height: 12, borderRadius: 6, backgroundColor: T.track, overflow: "hidden" }}>
+          <Animated.View
+            style={{
+              height: "100%",
+              borderRadius: 6,
+              backgroundColor: T.green,
+              width: progressAnim.interpolate({
+                inputRange: [0, 100],
+                outputRange: ["0%", "100%"],
+              }),
+            }}
+          />
+        </View>
+      </View>
+
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 140 }}>
+        {/* Mascot Stage & Speech Bubble */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 18, overflow: "hidden" }}>
+            <LottieView
+              source={require("../../../assets/images/lionblink.json")}
+              autoPlay
+              loop
+              style={{ width: "100%", height: "100%" }}
+            />
+          </View>
+
+          <View style={{
+            flex: 1,
+            borderRadius: 20,
+            borderWidth: 1.5,
+            borderColor: T.fieldBorder,
+            backgroundColor: "#FFFFFF",
+            padding: 16,
+            shadowColor: "#000000",
+            shadowOpacity: 0.03,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 1,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: T.ink }}>Education</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, fontWeight: "600", color: T.caps, lineHeight: 18 }}>
+              Time to brag about your school days! Where did you study?
+            </Text>
+          </View>
+        </View>
+
+        {/* Added Education Items List */}
+        {educationItems.length > 0 && (
+          <View style={{ marginBottom: 20, gap: 10 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps }}>
+              ADDED EDUCATION ({educationItems.length})
+            </Text>
+            {educationItems.map((item) => (
+              <View
+                key={String(item.id)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justify: "space-between",
+                  padding: 14,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  backgroundColor: T.fieldBg,
+                }}
+              >
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: "800", color: T.ink }}>
+                    {item.school || "University"}
+                  </Text>
+                  <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: T.caps, marginTop: 2 }}>
+                    {item.degree} • {item.startDate} - {item.endDate}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => handleEdit(item)}>
+                    <MaterialIcons name="edit" size={20} color={T.blue} />
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => handleDelete(item.id)}>
+                    <MaterialIcons name="delete-outline" size={20} color={T.red} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
-        {showAddForm && (
-          <View className="mb-3 rounded-[24px] border border-[#D9E2EC] bg-white p-4 shadow-sm">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-lg font-bold text-[#102A43]">{editingId ? "Edit Education" : "New Education"}</Text>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
-                <Text className="text-sm font-bold text-[#E76F51]">Cancel</Text>
-              </TouchableOpacity>
-            </View>
-
-            <FormInputBox
-              label="School/University"
+        {/* Input Form Fields matching PDF */}
+        <View style={{ gap: 16 }}>
+          {/* Institution Name */}
+          <View>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+              INSTITUTION NAME *
+            </Text>
+            <TextInput
               value={formData.school}
-              onChange={(v) => handleChange("school", v)}
-              placeholder="University name"
-              icon="school"
-              required
+              onChangeText={(v) => handleChange("school", v)}
+              placeholder="e.g. Stanford University"
+              placeholderTextColor={T.placeholder}
+              style={{
+                backgroundColor: T.fieldBg,
+                borderWidth: 1,
+                borderColor: T.fieldBorder,
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                fontWeight: "600",
+                color: T.ink,
+              }}
             />
-            <FormInputBox
-              label="Degree"
+          </View>
+
+          {/* Degree / Major */}
+          <View>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+              DEGREE / MAJOR *
+            </Text>
+            <TextInput
               value={formData.degree}
-              onChange={(v) => handleChange("degree", v)}
-              placeholder="e.g., Bachelor of Science"
-              required
+              onChangeText={(v) => handleChange("degree", v)}
+              placeholder="e.g. BS in Computer Science"
+              placeholderTextColor={T.placeholder}
+              style={{
+                backgroundColor: T.fieldBg,
+                borderWidth: 1,
+                borderColor: T.fieldBorder,
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                fontWeight: "600",
+                color: T.ink,
+              }}
             />
+          </View>
 
-            <FormInputBox
-              label="Field of Study"
-              value={formData.field}
-              onChange={(v) => handleChange("field", v)}
-              placeholder="e.g., Computer Science"
-              required
-            />
-            <FormInputBox
-              label="Location"
-              value={formData.location}
-              onChange={(v) => handleChange("location", v)}
-              placeholder="City, State"
-              icon="location-on"
-              required
-            />
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <FormInputBox
-                  label="Start Date"
-                  value={formData.startDate}
-                  onChange={(v) => handleChange("startDate", v)}
-                  placeholder="Aug 2018"
-                  icon="calendar-today"
-                  required
-                />
-              </View>
-              <View className="flex-1">
-                <FormInputBox
-                  label="End Date"
-                  value={formData.endDate}
-                  onChange={(v) => handleChange("endDate", v)}
-                  placeholder="May 2022"
-                  required
-                />
-              </View>
-            </View>
-
-            <View className="mb-3 flex-row items-center justify-between rounded-2xl bg-[#F7F9FC] px-3 py-2.5">
-              <Text className="text-base text-[#102A43]">Currently studying here</Text>
-              <Switch
-                value={formData.isCurrent}
-                onValueChange={(v) => handleChange("isCurrent", v)}
-                trackColor={{ false: "#D9E2EC", true: "#A8DCD5" }}
-                thumbColor="#ffffff"
+          {/* Dates Row */}
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                START DATE *
+              </Text>
+              <TextInput
+                value={formData.startDate}
+                onChangeText={(v) => handleChange("startDate", v)}
+                placeholder="e.g. 2018"
+                placeholderTextColor={T.placeholder}
+                style={{
+                  backgroundColor: T.fieldBg,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color: T.ink,
+                }}
               />
             </View>
 
-            <FormInputBox
-              label="GPA"
-              value={formData.gpa}
-              onChange={(v) => handleChange("gpa", v)}
-              placeholder="e.g., 3.8"
-              required
-            />
-            <FormInputBox
-              label="Achievements & Activities"
-              value={formData.achievements}
-              onChange={(v) => handleChange("achievements", v)}
-              placeholder="Honors, clubs, relevant coursework..."
-              multiline
-              required
-            />
-            <TouchableOpacity
-              className={`${saving || !isFormComplete ? "bg-[#F2B7A9]" : "bg-[#E76F51]"} mt-1 h-12 flex-row items-center justify-center rounded-2xl`}
-              activeOpacity={0.9}
-              onPress={handleAddOrUpdate}
-              disabled={saving}
-            >
-              <Text className="text-base font-bold text-white">
-                {editingId ? "Update Education" : "Add Education"}
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                END DATE (OR EXPECTED) *
               </Text>
-            </TouchableOpacity>
+              <TextInput
+                value={formData.endDate}
+                onChangeText={(v) => handleChange("endDate", v)}
+                placeholder="e.g. 2022"
+                placeholderTextColor={T.placeholder}
+                style={{
+                  backgroundColor: T.fieldBg,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color: T.ink,
+                }}
+              />
+            </View>
           </View>
-        )}
 
-        {educationItems.map((item) => (
-          <FormSectionCard key={item.id} title={item.school} accent="#3A86FF" icon="school">
-            <View className="flex-row items-start justify-between">
-              <View className="flex-row items-start gap-3 flex-1">
-                <MaterialIcons name="drag-indicator" size={20} color="#829AB1" />
-                <View className="flex-1">
-                  <FormInputBox
-                    label="School/University"
-                    value={item.school}
-                    placeholder="University name"
-                    icon="school"
-                  />
-                  <FormInputBox
-                    label="Degree"
-                    value={item.degree}
-                    placeholder="e.g., Bachelor of Science"
-                  />
-                  <Text className="mt-1 text-sm text-[#486581]">{item.timeline}</Text>
-                  <FormInputBox
-                    label="GPA"
-                    value={item.gpa}
-                    placeholder="e.g., 3.8"
-                  />
-                  <Text className="mt-2 text-sm text-[#486581]" numberOfLines={2}>
-                    {item.details}
-                  </Text>
-                </View>
-              </View>
-              <View className="flex-row items-center gap-4">
-                <TouchableOpacity activeOpacity={0.8}>
-                  <MaterialIcons name="edit" size={18} color="#4b5563" onPress={() => handleEdit(item.id)} />
-                </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} onPress={() => handleDelete(item.id)}>
-                  <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </FormSectionCard>
-        ))}
-        {!showAddForm && educationItems.length === 0 && (
-          <View className="items-center rounded-[24px] border border-dashed border-[#9CC1FF] bg-[#F4F8FF] px-6 py-9">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#DDEAF5]">
-              <MaterialIcons name="school" size={28} color="#3A86FF" />
-            </View>
-            <Text className="mt-4 text-lg font-bold text-[#102A43]">Start your learning story</Text>
-            <Text className="mt-1 text-center text-sm text-[#486581]">Add your education to complete this resume section.</Text>
+          {/* GPA (Optional) */}
+          <View>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+              GPA (OPTIONAL)
+            </Text>
+            <TextInput
+              value={formData.gpa}
+              onChangeText={(v) => handleChange("gpa", v)}
+              placeholder="e.g. 3.8 / 4.0"
+              placeholderTextColor={T.placeholder}
+              style={{
+                backgroundColor: T.fieldBg,
+                borderWidth: 1,
+                borderColor: T.fieldBorder,
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                fontWeight: "600",
+                color: T.ink,
+              }}
+            />
           </View>
-        )}
+        </View>
       </ScrollView>
 
-      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
+      {/* Fixed Bottom Action 3D Button */}
+      <View style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 28,
+        borderTopWidth: 1,
+        borderTopColor: T.fieldBorder,
+      }}>
+        <TouchableOpacity activeOpacity={0.92} onPress={handleAddOrUpdate}>
+          <View style={{ borderRadius: 20, paddingBottom: 4, backgroundColor: isFormComplete ? T.greenPressed : T.caps }}>
+            <View style={{
+              alignItems: "center",
+              justify: "center",
+              borderRadius: 20,
+              paddingVertical: 16,
+              backgroundColor: isFormComplete ? T.green : T.fieldBorder,
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" }}>
+                {editingId ? "UPDATE EDUCATION" : "SAVE EDUCATION"}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {(loading || saving) && <BookLoader visible={loading || saving} />}
     </View>
   );
 };

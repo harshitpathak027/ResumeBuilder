@@ -1,15 +1,29 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
-import FormInputBox from "../../../components/ui/FormInputBox";
-import FormSectionCard from "../../../components/ui/FormSectionCard";
+import { Animated, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import LottieView from "lottie-react-native";
 import BookLoader from "../../../components/screen/BookLoader";
 import { API_BASE_URL } from "../../../constants/api";
 import { authFetch } from "../../../utils/authFetch";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
 import { getResumeDraft, saveResumeDraft } from "../../../utils/resumeDraftStorage";
-import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
+
+const T = {
+  blue: "#3B82F6",
+  blueBg: "#E8F2FF",
+  cyan: "#00A2E8",
+  green: "#58CC02",
+  greenPressed: "#46A302",
+  greenBg: "#EEFCE2",
+  ink: "#141821",
+  fieldBg: "#F6F6F7",
+  fieldBorder: "#E6E7EA",
+  placeholder: "#A9ADB6",
+  caps: "#9AA0AC",
+  track: "#EDEFF2",
+  red: "#E5484D",
+};
 
 const EditWorkExperience = () => {
   const router = useRouter();
@@ -32,17 +46,39 @@ const EditWorkExperience = () => {
     endDate: "",
     isCurrent: false,
     description: "",
-    sortOrder: 0,
   });
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Dynamic progress calculation based on form or list state
+  const trackedFields = [
+    formData.company,
+    formData.jobTitle,
+    formData.startDate,
+    formData.endDate,
+    formData.description,
+  ];
+
+  const filledCount = trackedFields.filter((f) => String(f || "").trim().length > 0).length;
+  const formProgress = (filledCount / trackedFields.length) * 100;
+  const listProgress = experienceItems.length > 0 ? 100 : 0;
+  const currentProgress = showAddForm ? formProgress : listProgress;
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: currentProgress,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentProgress]);
 
   const getMissingFields = () => {
     const missing = [];
-    if (!formData.jobTitle.trim()) missing.push("Job Title");
-    if (!formData.company.trim()) missing.push("Company");
-    if (!formData.location.trim()) missing.push("Location");
-    if (!formData.startDate.trim()) missing.push("Start Date");
-    if (!formData.endDate.trim()) missing.push("End Date");
-    if (!formData.description.trim()) missing.push("Description");
+    if (!formData.company?.trim()) missing.push("Company Name");
+    if (!formData.jobTitle?.trim()) missing.push("Role / Title");
+    if (!formData.startDate?.trim()) missing.push("Start Date");
+    if (!formData.endDate?.trim()) missing.push("End Date");
+    if (!formData.description?.trim()) missing.push("Job Description");
     return missing;
   };
 
@@ -68,7 +104,6 @@ const EditWorkExperience = () => {
       endDate: "",
       isCurrent: false,
       description: "",
-      sortOrder: 0,
     });
     setEditingId(null);
   };
@@ -122,13 +157,12 @@ const EditWorkExperience = () => {
       if (isDraft) {
         const current = await getResumeDraft();
         const nextExperience = editingId
-          ? current.experience.map((item) => item.id === editingId ? { ...formData, id: editingId } : item)
+          ? current.experience.map((item) => (item.id === editingId ? { ...formData, id: editingId } : item))
           : [...(current.experience || []), { ...formData, id: `experience-${Date.now()}` }];
         await saveResumeDraft({ experience: nextExperience });
         setExperienceItems(nextExperience);
         resetForm();
         setShowAddForm(false);
-        router.replace({ pathname: "/template/[id]", params: { id: String(current.templateId), draft: "true", name: current.title } });
         return;
       }
 
@@ -136,7 +170,7 @@ const EditWorkExperience = () => {
         resume: { id: Number(resumeId) },
         jobTitle: formData.jobTitle,
         company: formData.company,
-        location: formData.location,
+        location: formData.location || "N/A",
         startDate: formData.startDate,
         endDate: formData.endDate,
         isCurrent: formData.isCurrent,
@@ -144,10 +178,7 @@ const EditWorkExperience = () => {
         sortOrder: 0,
       };
 
-      const url = editingId
-        ? `${API_BASE_URL}/work-experience/${editingId}`
-        : `${API_BASE_URL}/work-experience`;
-
+      const url = editingId ? `${API_BASE_URL}/work-experience/${editingId}` : `${API_BASE_URL}/work-experience`;
       const method = editingId ? "PUT" : "POST";
 
       const response = await authFetch(url, {
@@ -172,47 +203,22 @@ const EditWorkExperience = () => {
     }
   };
 
-  const handleEdit = async (id) => {
-    try {
-      setSaving(true);
-      if (isDraft) {
-        const draft = await getResumeDraft();
-        const item = draft.experience.find((entry) => entry.id === id);
-        if (item) setFormData(item);
-        setEditingId(id);
-        setShowAddForm(true);
-        setSaving(false);
-        return;
-      }
-      const req = await authFetch(`${API_BASE_URL}/work-experience/${id}`);
-
-      if (req.ok) {
-        const data = await req.json();
-        setEditingId(id);
-        setFormData({
-          jobTitle: data.jobTitle || "",
-          company: data.company || "",
-          location: data.location || "",
-          startDate: data.startDate || "",
-          endDate: data.endDate || "",
-          isCurrent: data.isCurrent || false,
-          description: data.description || "",
-          sortOrder: data.sortOrder || 0,
-        });
-        setShowAddForm(true);
-        requestAnimationFrame(() => {
-          scrollRef.current?.scrollTo?.({ y: 0, animated: true });
-        });
-      }
-    } catch (error) {
-      console.log("Error loading position:", error);
-      queuePopup("Error", "Could not load position");
-    } finally {
-      setSaving(false);
-    }
+  const handleEdit = (item) => {
+    setEditingId(item.id);
+    setFormData({
+      jobTitle: item.jobTitle || "",
+      company: item.company || "",
+      location: item.location || "",
+      startDate: item.startDate || "",
+      endDate: item.endDate || "",
+      isCurrent: item.isCurrent || false,
+      description: item.description || "",
+    });
+    setShowAddForm(true);
+    scrollRef.current?.scrollTo?.({ y: 0, animated: true });
   };
 
-  const handleDelete = async (id) => {
+  const performDelete = async (id) => {
     try {
       setSaving(true);
       if (isDraft) {
@@ -229,6 +235,10 @@ const EditWorkExperience = () => {
 
       if (response.ok) {
         await fetchWorkExperience();
+        if (editingId === id) {
+          resetForm();
+          setShowAddForm(false);
+        }
       } else {
         queuePopup("Error", "Could not delete position");
       }
@@ -240,12 +250,28 @@ const EditWorkExperience = () => {
     }
   };
 
+  const handleDelete = (id) => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("Are you sure you want to delete this position?");
+      if (confirmed) {
+        performDelete(id);
+      }
+      return;
+    }
+    performDelete(id);
+  };
+
   const handleAddForm = () => {
     resetForm();
     setShowAddForm(true);
   };
 
   const handleBack = () => {
+    if (showAddForm && experienceItems.length > 0) {
+      setShowAddForm(false);
+      resetForm();
+      return;
+    }
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -253,171 +279,347 @@ const EditWorkExperience = () => {
     }
   };
 
-  if (loading) {
-    return <BookLoader visible={loading} />;
-  }
+  const handleMainButtonPress = () => {
+    if (showAddForm) {
+      handleAddOrUpdate();
+    } else if (experienceItems.length > 0) {
+      router.back();
+    } else {
+      handleAddForm();
+    }
+  };
 
   return (
-    <View className="flex-1 bg-[#F7F9FC]">
-      <TemplatePageHeader
-        eyebrow="Your track record"
-        title="Work Experience"
-        accent="#F4C95D"
-        accentSoft="#FFF8DE"
-        icon="work-history"
-        onBack={handleBack}
-        trailing={<View className="flex-row items-center gap-1 rounded-full bg-[#102A43] px-3 py-2"><MaterialIcons name="auto-fix-high" size={14} color="#F4C95D" /><Text className="text-sm font-bold text-white">AI</Text></View>}
-      />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Top Header Bar with Navigation Icon and Animated Progress Slider */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, paddingTop: 54, paddingBottom: 16 }}>
+        <TouchableOpacity activeOpacity={0.7} onPress={handleBack} style={{ padding: 4 }}>
+          <MaterialIcons name={showAddForm ? "arrow-back" : "close"} size={26} color={T.caps} />
+        </TouchableOpacity>
 
-      <ScrollView ref={scrollRef} style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="flex-1 pt-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
-        <View className="mb-3 rounded-[22px] border border-[#A8DCD5] bg-[#DDF3F0] p-4">
-          <View className="mb-3 flex-row items-start gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-[#102A43]">
-              <MaterialIcons name="auto-fix-high" size={20} color="#F4C95D" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-lg font-bold text-[#102A43]">AI Enhancement Available</Text>
-              <Text className="mt-1 text-sm text-[#486581]">Let AI improve your job descriptions with impactful language.</Text>
-            </View>
+        {/* Dynamic Progress Slider */}
+        <View style={{ flex: 1, height: 12, borderRadius: 6, backgroundColor: T.track, overflow: "hidden" }}>
+          <Animated.View
+            style={{
+              height: "100%",
+              borderRadius: 6,
+              backgroundColor: T.green,
+              width: progressAnim.interpolate({
+                inputRange: [0, 100],
+                outputRange: ["0%", "100%"],
+              }),
+            }}
+          />
+        </View>
+      </View>
+
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 140 }}>
+        {/* Mascot Stage & Speech Bubble */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 18, overflow: "hidden" }}>
+            <LottieView
+              source={require("../../../assets/images/lionblink.json")}
+              autoPlay
+              loop
+              style={{ width: "100%", height: "100%" }}
+            />
           </View>
-          <TouchableOpacity className="h-10 items-center justify-center self-start rounded-xl bg-[#E76F51] px-4" activeOpacity={0.85}>
-            <Text className="text-base font-bold text-white">Coming Soon</Text>
-          </TouchableOpacity>
+
+          <View style={{
+            flex: 1,
+            borderRadius: 20,
+            borderWidth: 1.5,
+            borderColor: T.fieldBorder,
+            backgroundColor: "#FFFFFF",
+            padding: 16,
+            shadowColor: "#000000",
+            shadowOpacity: 0.03,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 1,
+          }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: T.ink, lineHeight: 18 }}>
+              {showAddForm
+                ? "Describe your duties and highlight measurable achievements!"
+                : "Wow! You're moving fast. Now, tell me about your work experience!"}
+            </Text>
+          </View>
         </View>
 
-        {showAddForm && (
-          <View className="mb-3 rounded-[24px] border border-[#D9E2EC] bg-white p-4 shadow-sm">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-lg font-bold text-[#102A43]">{editingId ? "Edit Position" : "New Position"}</Text>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAddForm(false)}>
-                <Text className="text-sm font-bold text-[#E76F51]">Cancel</Text>
-              </TouchableOpacity>
-            </View>
+        {/* Page Title */}
+        <Text style={{ fontSize: 24, fontWeight: "900", color: T.ink, marginBottom: 20 }}>Work Experience</Text>
 
-            <FormInputBox
-              label="Job Title"
-              value={formData.jobTitle}
-              onChange={(v) => handleChange("jobTitle", v)}
-              placeholder="e.g., Software Engineer"
-              required
-            />
-            <FormInputBox
-              label="Company"
-              value={formData.company}
-              onChange={(v) => handleChange("company", v)}
-              placeholder="Company name"
-              icon="apartment"
-              required
-            />
-            <FormInputBox
-              label="Location"
-              value={formData.location}
-              onChange={(v) => handleChange("location", v)}
-              placeholder="City, State or Remote"
-              required
-            />
+        {/* View Mode: Saved Experience List Cards */}
+        {!showAddForm && (
+          <View style={{ gap: 14 }}>
+            {experienceItems.map((item) => (
+              <View
+                key={String(item.id)}
+                style={{
+                  borderRadius: 20,
+                  borderWidth: 2,
+                  borderColor: T.cyan,
+                  backgroundColor: "#FFFFFF",
+                  padding: 18,
+                  paddingBottom: 22,
+                  shadowColor: T.cyan,
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 2,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: T.ink }}>{item.jobTitle}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: T.cyan, marginTop: 2 }}>{item.company}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => handleEdit(item)}>
+                      <MaterialIcons name="edit" size={20} color={T.caps} />
+                    </TouchableOpacity>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => handleDelete(item.id)}>
+                      <MaterialIcons name="delete-outline" size={22} color={T.red} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <FormInputBox
-                  label="Start Date"
-                  value={formData.startDate}
-                  onChange={(v) => handleChange("startDate", v)}
-                  placeholder="Jan 2022"
-                  icon="calendar-today"
-                  required
-                />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 }}>
+                  <MaterialIcons name="date-range" size={16} color={T.caps} />
+                  <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", color: T.caps }}>
+                    {item.startDate} — {item.endDate}
+                  </Text>
+                </View>
+
+                {Boolean(item.description) && (
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: T.caps, marginTop: 8 }} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
               </View>
-              <View className="flex-1">
-                <FormInputBox
-                  label="End Date"
-                  value={formData.endDate}
-                  onChange={(v) => handleChange("endDate", v)}
-                  placeholder="Present"
-                  required
-                />
-              </View>
-            </View>
+            ))}
 
-            <View className="mb-3 flex-row items-center justify-between rounded-2xl bg-[#F7F9FC] px-3 py-2.5">
-              <Text className="text-base text-[#102A43]">I currently work here</Text>
-              <Switch
-                value={formData.isCurrent}
-                onValueChange={(v) => handleChange("isCurrent", v)}
-                trackColor={{ false: "#D9E2EC", true: "#A8DCD5" }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <FormInputBox
-              label="Description"
-              value={formData.description}
-              onChange={(v) => handleChange("description", v)}
-              placeholder="Describe your responsibilities and achievements..."
-              multiline
-              required
-            />
-
+            {/* Dashed Add Experience Button */}
             <TouchableOpacity
-              className={`${saving || !isFormComplete ? "bg-[#F2B7A9]" : "bg-[#E76F51]"} mt-1 h-12 flex-row items-center justify-center rounded-2xl`}
-              activeOpacity={0.9}
-              onPress={handleAddOrUpdate}
-              disabled={saving}
+              activeOpacity={0.8}
+              onPress={handleAddForm}
+              style={{
+                borderRadius: 20,
+                borderWidth: 2,
+                borderStyle: "dashed",
+                borderColor: T.fieldBorder,
+                backgroundColor: "#FFFFFF",
+                paddingVertical: 18,
+                alignItems: "center",
+                justify: "center",
+                flexDirection: "row",
+                gap: 8,
+              }}
             >
-              <Text className="text-base font-bold text-white">
-                {editingId ? "Update Position" : "Add Position"}
+              <MaterialIcons name="add" size={20} color={T.caps} />
+              <Text style={{ fontSize: 13, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps }}>
+                ADD EXPERIENCE
               </Text>
             </TouchableOpacity>
+
+            {/* Pro Tip Banner */}
+            <View
+              style={{
+                borderRadius: 20,
+                backgroundColor: T.blueBg,
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                marginTop: 6,
+              }}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+                <MaterialIcons name="lightbulb" size={22} color={T.blue} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: T.blue, lineHeight: 18 }}>
+                Pro tip: Focus on your achievements, not just your duties!
+              </Text>
+            </View>
           </View>
         )}
 
-        {experienceItems.map((item) => (
-          <FormSectionCard key={item.id} title={item.title} accent="#F4A261" icon="work-history">
-            <View className="flex-row items-start justify-between">
-              <View className="flex-row items-start gap-3 flex-1">
-                <MaterialIcons name="drag-indicator" size={20} color="#829AB1" />
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-[#102A43]">{item.jobTitle}</Text>
-                  <Text className="mt-1 text-sm font-semibold text-[#486581]">{item.company}</Text>
-                  <Text className="mt-1 text-xs text-[#829AB1]">{item.startDate} - {item.endDate} · {item.location}</Text>
-                  <Text className="mt-2 text-sm text-[#486581]" numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                  {item.isCurrent && (
-                    <View className="mt-3 self-start rounded-xl bg-[#DDF3F0] px-3 py-1">
-                      <Text className="text-sm font-bold text-[#176B67]">Current Position</Text>
-                    </View>
-                  )}
-                </View>
+        {/* Edit/Add Form Mode */}
+        {showAddForm && (
+          <View style={{ gap: 16 }}>
+            {/* Company Name */}
+            <View>
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                COMPANY NAME *
+              </Text>
+              <TextInput
+                value={formData.company}
+                onChangeText={(v) => handleChange("company", v)}
+                placeholder="e.g. Google"
+                placeholderTextColor={T.placeholder}
+                style={{
+                  backgroundColor: T.fieldBg,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color: T.ink,
+                }}
+              />
+            </View>
+
+            {/* Role / Title */}
+            <View>
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                ROLE / TITLE *
+              </Text>
+              <TextInput
+                value={formData.jobTitle}
+                onChangeText={(v) => handleChange("jobTitle", v)}
+                placeholder="e.g. UX Designer"
+                placeholderTextColor={T.placeholder}
+                style={{
+                  backgroundColor: T.fieldBg,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color: T.ink,
+                }}
+              />
+            </View>
+
+            {/* Dates Row */}
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                  START DATE *
+                </Text>
+                <TextInput
+                  value={formData.startDate}
+                  onChangeText={(v) => handleChange("startDate", v)}
+                  placeholder="e.g. Jan 2022"
+                  placeholderTextColor={T.placeholder}
+                  style={{
+                    backgroundColor: T.fieldBg,
+                    borderWidth: 1,
+                    borderColor: T.fieldBorder,
+                    borderRadius: 16,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: T.ink,
+                  }}
+                />
               </View>
-              <View className="flex-row items-center gap-4">
-                <TouchableOpacity activeOpacity={0.8} onPress={() => handleEdit(item.id)}>
-                  <MaterialIcons name="edit" size={18} color="#4b5563" />
-                </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} onPress={() => handleDelete(item.id)}>
-                  <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
-                </TouchableOpacity>
+
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                  END DATE *
+                </Text>
+                <TextInput
+                  value={formData.endDate}
+                  onChangeText={(v) => handleChange("endDate", v)}
+                  placeholder="e.g. Present"
+                  placeholderTextColor={T.placeholder}
+                  style={{
+                    backgroundColor: T.fieldBg,
+                    borderWidth: 1,
+                    borderColor: T.fieldBorder,
+                    borderRadius: 16,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: T.ink,
+                  }}
+                />
               </View>
             </View>
-          </FormSectionCard>
-        ))}
-        {!showAddForm && experienceItems.length === 0 && (
-          <View className="items-center rounded-[24px] border border-dashed border-[#E8C86A] bg-[#FFF8DE] px-6 py-9">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#F4C95D]">
-              <MaterialIcons name="work-history" size={28} color="#102A43" />
+
+            {/* Job Description */}
+            <View>
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 6 }}>
+                JOB DESCRIPTION *
+              </Text>
+              <TextInput
+                value={formData.description}
+                onChangeText={(v) => handleChange("description", v)}
+                placeholder="Tell us about your achievements..."
+                placeholderTextColor={T.placeholder}
+                multiline
+                numberOfLines={4}
+                style={{
+                  backgroundColor: T.fieldBg,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color: T.ink,
+                  minHeight: 110,
+                  textAlignVertical: "top",
+                }}
+              />
             </View>
-            <Text className="mt-4 text-lg font-bold text-[#102A43]">No experience added</Text>
-            <Text className="mt-1 text-center text-sm text-[#486581]">Add your first role and turn work into momentum.</Text>
           </View>
         )}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-[#D9E2EC] bg-[#F7F9FC] px-4 py-3">
-        <TouchableOpacity className="h-14 flex-row items-center justify-center rounded-2xl bg-[#E76F51]" activeOpacity={0.9} onPress={showAddForm ? handleAddOrUpdate : handleAddForm} disabled={saving}>
-          <Text className="text-base font-bold text-white">{showAddForm ? (editingId ? "Update Position" : "Add Position") : "Add Position"}</Text>
+      {/* Bottom Action 3D Keycap Button */}
+      <View style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 28,
+        borderTopWidth: 1,
+        borderTopColor: T.fieldBorder,
+      }}>
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={handleMainButtonPress}
+          disabled={saving || (showAddForm && !isFormComplete)}
+        >
+          <View
+            style={{
+              borderRadius: 20,
+              paddingBottom: 4,
+              backgroundColor: (!showAddForm || isFormComplete) ? T.greenPressed : T.caps,
+            }}
+          >
+            <View
+              style={{
+                alignItems: "center",
+                justify: "center",
+                borderRadius: 20,
+                paddingVertical: 16,
+                backgroundColor: (!showAddForm || isFormComplete) ? T.green : T.fieldBorder,
+              }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" }}>
+                {showAddForm
+                  ? (editingId ? "UPDATE EXPERIENCE" : "SAVE & CONTINUE")
+                  : "CONTINUE"}
+              </Text>
+            </View>
+          </View>
         </TouchableOpacity>
       </View>
-      {(loading || saving) ? <BookLoader visible={loading || saving} /> : null}
+
+      {(loading || saving) && <BookLoader visible={loading || saving} />}
     </View>
   );
 };

@@ -1,8 +1,7 @@
-import {useFocusEffect, useLocalSearchParams, useRouter} from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Linking, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
 import { API_BASE_URL } from "../../../constants/api";
 import { getAuthToken, getAuthUser, setAuthSession } from "../../../utils/authStorage";
@@ -12,11 +11,28 @@ import SnapResumeLoader from "../../../components/screen/SnapResumeLoader";
 import BookLoader from "../../../components/screen/BookLoader";
 import { showErrorMessage } from "../../../utils/errorMessageBus";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import TemplatePageHeader from "../../../components/ui/TemplatePageHeader";
 import { clearResumeDraft, getResumeDraft, isResumeDraftComplete, saveResumeDraft } from "../../../utils/resumeDraftStorage";
 
+const T = {
+  blue: "#3B82F6",
+  blueBg: "#E8F2FF",
+  green: "#58CC02",
+  greenPressed: "#46A302",
+  greenBg: "#EEFCE2",
+  orange: "#F5A623",
+  orangeBg: "#FFF0D9",
+  ink: "#141821",
+  fieldBg: "#F8F9FA",
+  fieldBorder: "#EAEBED",
+  caps: "#9AA0AC",
+  red: "#E5484D",
+  redBg: "#FDECEC",
+  disabledBg: "#E0E2E7",
+  disabledBorder: "#C8CBD0",
+};
+
 const TemplateDetail = () => {
-  const {id,name,description,resumeId: routeResumeId, draft: draftParam} = useLocalSearchParams();
+  const { id, name, description, resumeId: routeResumeId, draft: draftParam } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -28,13 +44,11 @@ const TemplateDetail = () => {
   const [draft, setDraft] = useState(null);
   const progressValue = useRef(new Animated.Value(0)).current;
   const isDraftFlow = String(Array.isArray(draftParam) ? draftParam[0] : draftParam) === "true";
-  const scrollY = useRef(new Animated.Value(0)).current;
   const cardEntrances = useRef({}).current;
   const cardPressScales = useRef({}).current;
   const templateName = Array.isArray(name) ? name[0] : name;
   const templateDescription = Array.isArray(description) ? description[0] : description;
   const [resumeTitle, setResumeTitle] = useState(templateName ? `${templateName} Resume` : "My Resume");
-  console.log("Template ID:", id, templateName);
 
   const parsedTemplateId = Array.isArray(id) ? Number(id[0]) : Number(id);
 
@@ -48,59 +62,36 @@ const TemplateDetail = () => {
 
   useFocusEffect(
     useCallback(() => {
-    const loadProgress = async () => {
-      let nextDraft;
-      if (isDraftFlow) {
-        nextDraft = await getResumeDraft();
-      } else if (resumeId) {
-        const [personalResponse, educationResponse, experienceResponse, skillsResponse, projectsResponse] = await Promise.all([
-          authFetch(`${API_BASE_URL}/personal/${resumeId}`),
-          authFetch(`${API_BASE_URL}/education`),
-          authFetch(`${API_BASE_URL}/work-experience/resume/${resumeId}`),
-          authFetch(`${API_BASE_URL}/skills/resume/${resumeId}`),
-          authFetch(`${API_BASE_URL}/projects/resume/${resumeId}`),
-        ]);
-        const readJson = async (response) => response.ok ? response.json().catch(() => null) : null;
-        nextDraft = {
-          personal: await readJson(personalResponse),
-          education: await readJson(educationResponse) || [],
-          experience: await readJson(experienceResponse) || [],
-          skills: await readJson(skillsResponse) || [],
-          projects: await readJson(projectsResponse) || [],
-        };
-      } else {
-        return;
-      }
-      setDraft(nextDraft);
-      const completed = ["personal-information", "education", "experience", "skills", "projects"].filter((section) => isSectionComplete(section, nextDraft)).length;
-      Animated.timing(progressValue, { toValue: completed / 5, duration: 650, useNativeDriver: false }).start();
-    };
-    loadProgress();
-  }, [isDraftFlow, progressValue, resumeId])
+      const loadProgress = async () => {
+        let nextDraft;
+        if (isDraftFlow) {
+          nextDraft = await getResumeDraft();
+        } else if (resumeId) {
+          const [personalResponse, educationResponse, experienceResponse, skillsResponse, projectsResponse] = await Promise.all([
+            authFetch(`${API_BASE_URL}/personal/${resumeId}`),
+            authFetch(`${API_BASE_URL}/education`),
+            authFetch(`${API_BASE_URL}/work-experience/resume/${resumeId}`),
+            authFetch(`${API_BASE_URL}/skills/resume/${resumeId}`),
+            authFetch(`${API_BASE_URL}/projects/resume/${resumeId}`),
+          ]);
+          const readJson = async (response) => (response.ok ? response.json().catch(() => null) : null);
+          nextDraft = {
+            personal: await readJson(personalResponse),
+            education: (await readJson(educationResponse)) || [],
+            experience: (await readJson(experienceResponse)) || [],
+            skills: (await readJson(skillsResponse)) || [],
+            projects: (await readJson(projectsResponse)) || [],
+          };
+        } else {
+          return;
+        }
+        setDraft(nextDraft);
+        const completed = ["personal-information", "education", "experience", "skills", "projects"].filter((section) => isSectionComplete(section, nextDraft)).length;
+        Animated.timing(progressValue, { toValue: completed / 5, duration: 650, useNativeDriver: false }).start();
+      };
+      loadProgress();
+    }, [isDraftFlow, progressValue, resumeId])
   );
-
-  const openExternalUrl = async (url, mode = "preview") => {
-    if (Platform.OS === "web") {
-      if (mode === "download") {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "resume.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
-      }
-      window.location.assign(url);
-      return;
-    }
-
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      showErrorMessage("Error", "Cannot open this URL on your device");
-      return;
-    }
-    await Linking.openURL(url);
-  };
 
   const downloadProtectedPdfOnWeb = async (url) => {
     const response = await authFetch(url, { method: "GET" });
@@ -150,9 +141,6 @@ const TemplateDetail = () => {
       },
     });
 
-    const contentTypeHeader = result?.headers?.["Content-Type"] || result?.headers?.["content-type"] || "";
-    const contentType = String(contentTypeHeader).toLowerCase();
-
     if (result?.status === 401) {
       showErrorMessage("Session expired", "Please login again");
       router.replace("/login");
@@ -172,7 +160,6 @@ const TemplateDetail = () => {
     return {
       uri: result?.uri ?? null,
       status: result?.status,
-      contentType,
     };
   };
 
@@ -282,7 +269,7 @@ const TemplateDetail = () => {
 
     setCreatingResume(true);
     try {
-      let auth  = await getAuthUser();
+      let auth = await getAuthUser();
       let userId = auth?.id;
 
       if (!userId) {
@@ -300,7 +287,7 @@ const TemplateDetail = () => {
           }
         }
       }
-      
+
       if (!userId) {
         showErrorMessage("Error", "User not authenticated");
         return null;
@@ -352,444 +339,491 @@ const TemplateDetail = () => {
     return createResumeRecord(resumeTitle.trim() || "My Resume");
   };
 
-const templateDetailTabs = [
-  {
-    name: "personal-information",
-    label: "Personal Information",
-    icon: "person",
-    description: "Name, email, phone, address",
-  },
-  {
-    name: "education",
-    label: "Education",
-    icon: "school",
-    description: "Degree, college, graduation year",
-  },
-  {
-    name: "experience",
-    label: "Experience",
-    icon: "work",
-    description: "Job title, company, duration",
-  },
-  {
-    name: "skills",
-    label: "Skills",
-    icon: "build",
-    description: "Technical, soft skills",
-  },
-  {
-    name: "projects",
-    label: "Projects",
-    icon: "code",
-    description: "Project title, tech stack, and impact",
-  },
-];
+  const templateDetailTabs = [
+    {
+      name: "personal-information",
+      label: "Personal Information",
+      icon: "person",
+      description: "Name, email, phone, address",
+    },
+    {
+      name: "education",
+      label: "Education",
+      icon: "school",
+      description: "Degree, college, graduation year",
+    },
+    {
+      name: "experience",
+      label: "Experience",
+      icon: "work",
+      description: "Job title, company, duration",
+    },
+    {
+      name: "skills",
+      label: "Skills",
+      icon: "build",
+      description: "Technical, soft skills",
+    },
+    {
+      name: "projects",
+      label: "Projects",
+      icon: "code",
+      description: "Project title, tech stack, and impact",
+    },
+  ];
 
-const tabPalette = [
-  { icon: "#168A83", soft: "#E5F5F1", active: "#F7FCFB", gradient: ["#FFFFFF", "#E6FAF5", "#BFE9DF"] },
-  { icon: "#426EBA", soft: "#EAF0FB", active: "#F8FAFE", gradient: ["#FFFFFF", "#EEF4FF", "#C8D9F5"] },
-  { icon: "#B8752D", soft: "#FFF1DF", active: "#FFFCF8", gradient: ["#FFFFFF", "#FFF7EA", "#F6D7AA"] },
-  { icon: "#438B72", soft: "#E8F4EE", active: "#F8FCFA", gradient: ["#FFFFFF", "#EEF8F2", "#C7E5D4"] },
-  { icon: "#C95C54", soft: "#FBEAE7", active: "#FFFAF9", gradient: ["#FFFFFF", "#FFF2EF", "#F4C6BF"] },
-];
+  const tabPalette = [
+    { icon: "#3B82F6", bg: "#E8F2FF" },
+    { icon: "#F5A623", bg: "#FFF4E5" },
+    { icon: "#58CC02", bg: "#EEFCE2" },
+    { icon: "#8B5CF6", bg: "#F3E8FF" },
+    { icon: "#EC4899", bg: "#FCE7F3" },
+  ];
 
-    useEffect(() => {
-      templateDetailTabs.forEach((tab, index) => {
-        if (!cardEntrances[tab.name]) {
-          cardEntrances[tab.name] = new Animated.Value(0);
-          cardPressScales[tab.name] = new Animated.Value(1);
-        }
-
-        Animated.spring(cardEntrances[tab.name], {
-          toValue: 1,
-          delay: index * 90,
-          friction: 8,
-          tension: 60,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, [cardEntrances, cardPressScales]);
-
-    const handleCreateAndContinue = async () => {
-      const trimmedTitle = resumeTitle.trim();
-      if (!trimmedTitle) {
-        showErrorMessage("Missing Fields", "Please fill: Resume Title");
-        return;
+  useEffect(() => {
+    templateDetailTabs.forEach((tab, index) => {
+      if (!cardEntrances[tab.name]) {
+        cardEntrances[tab.name] = new Animated.Value(0);
+        cardPressScales[tab.name] = new Animated.Value(1);
       }
 
-      await saveResumeDraft({
-        title: trimmedTitle,
-        templateId: parsedTemplateId,
-      });
-      router.replace({
-        pathname: "/template/[id]",
-        params: {
-          id: String(parsedTemplateId),
-          name: String(templateName || "Resume"),
-          description: String(templateDescription || ""),
-          draft: "true",
-          templateId: String(parsedTemplateId),
-          resumeTitle: trimmedTitle,
-        },
-      });
+      Animated.spring(cardEntrances[tab.name], {
+        toValue: 1,
+        delay: index * 90,
+        friction: 8,
+        tension: 60,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [cardEntrances, cardPressScales]);
+
+  const handleCreateAndContinue = async () => {
+    const trimmedTitle = resumeTitle.trim();
+    if (!trimmedTitle) {
+      showErrorMessage("Missing Fields", "Please fill: Resume Title");
+      return;
+    }
+
+    await saveResumeDraft({
+      title: trimmedTitle,
+      templateId: parsedTemplateId,
+    });
+    router.replace({
+      pathname: "/template/[id]",
+      params: {
+        id: String(parsedTemplateId),
+        name: String(templateName || "Resume"),
+        description: String(templateDescription || ""),
+        draft: "true",
+        templateId: String(parsedTemplateId),
+        resumeTitle: trimmedTitle,
+      },
+    });
+  };
+
+  const handleSectionPress = async (tab) => {
+    const sectionRoutes = {
+      "personal-information": "/template/edit-profile-information",
+      experience: "/template/edit-work-experience",
+      education: "/template/edit-education",
+      skills: "/template/edit-skills",
+      projects: "/template/edit-projects",
     };
-
-    const handleSectionPress = async (tab) => {
-      const sectionRoutes = {
-        "personal-information": "/template/edit-profile-information",
-        experience: "/template/edit-work-experience",
-        education: "/template/edit-education",
-        skills: "/template/edit-skills",
-        projects: "/template/edit-projects",
-      };
-      if (isDraftFlow) {
-        router.push({
-          pathname: sectionRoutes[tab.name],
-          params: { draft: "true", name: String(tab.label) },
-        });
-        return;
-      }
-      const ensuredResumeId = await ensureResumeId();
+    if (isDraftFlow) {
       router.push({
         pathname: sectionRoutes[tab.name],
-        params: { resumeId: String(ensuredResumeId), name: String(tab.label) },
+        params: { draft: "true", name: String(tab.label) },
       });
-    };
-
-    const handleCreateDraft = async () => {
-      const currentDraft = await getResumeDraft();
-      if (!isResumeDraftComplete(currentDraft)) {
-        showErrorMessage("Complete your resume", "Finish all five sections before creating it");
-        return;
-      }
-      setCreatingResume(true);
-      try {
-        const token = await getAuthToken();
-        if (!token) throw new Error("Your session has expired. Please log in again.");
-        const user = await getAuthUser();
-        const request = (url, body, method = "POST") => fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-        const templateId = Number(parsedTemplateId);
-        const userId = Number(user?.id);
-        if (!Number.isFinite(templateId) || templateId <= 0) throw new Error("The selected template is invalid. Please choose a template again.");
-        if (!Number.isFinite(userId) || userId <= 0) throw new Error("Your user session is invalid. Please log in again.");
-        const response = await request(`${API_BASE_URL}/resumes`, { title: currentDraft.title?.trim() || "My Resume", userId, templateId });
-        const data = await response.json().catch(() => null);
-        const createdId = data?.id ?? data?.resumeId;
-        if (!response.ok || !createdId) throw new Error(data?.message || data?.error || "Could not create resume");
-        const send = async (url, body) => {
-          const backendBody = { ...body };
-          delete backendBody.id;
-          delete backendBody.resume;
-          const result = await request(url, { ...backendBody, resume: { id: createdId } });
-          if (!result.ok) {
-            const details = await result.text().catch(() => "");
-            throw new Error(`${url.replace(API_BASE_URL, "")} returned ${result.status}${details ? `: ${details}` : ""}`);
-          }
-        };
-        const personalResult = await request(`${API_BASE_URL}/personal/${createdId}`, { ...currentDraft.personal, resumeId: createdId }, "PUT");
-        if (!personalResult.ok) throw new Error(`/personal/${createdId} returned ${personalResult.status}`);
-        const sectionRequests = [
-          ...currentDraft.education.map((item) => ["Education", `${API_BASE_URL}/education`, item]),
-          ...currentDraft.experience.map((item) => ["Work Experience", `${API_BASE_URL}/work-experience`, item]),
-          ...currentDraft.skills.map((item) => ["Skills", `${API_BASE_URL}/skills`, { skillName: item.name, category: item.category, rating: item.rating, sortOrder: 0 }]),
-          ...currentDraft.projects.map((item) => ["Projects", `${API_BASE_URL}/projects`, item]),
-        ];
-        const results = await Promise.allSettled(sectionRequests.map(([, url, body]) => send(url, body)));
-        const failures = results.map((result, index) => result.status === "rejected" ? sectionRequests[index][0] : null).filter(Boolean);
-        if (failures.length) throw new Error(`Could not save: ${[...new Set(failures)].join(", ")}`);
-        await clearResumeDraft();
-        router.replace("/");
-      } catch (error) {
-        showErrorMessage("Could not create resume", error?.message || "Please try again");
-      } finally {
-        setCreatingResume(false);
-      }
-    };
-
-    if (!resumeId && creatingResume) {
-      return <BookLoader visible={creatingResume} />;
+      return;
     }
+    const ensuredResumeId = await ensureResumeId();
+    router.push({
+      pathname: sectionRoutes[tab.name],
+      params: { resumeId: String(ensuredResumeId), name: String(tab.label) },
+    });
+  };
 
-    if (actionLoading) {
-      return (
-        <SnapResumeLoader
-          messages={
-            actionType === "export"
-              ? [
-                  "Generating your PDF export...",
-                  "Adjusting layout and alignment...",
-                  "Optimizing for print quality...",
-                  "Finalizing your download...",
-                ]
-              : [
-                  "Loading your resume preview...",
-                  "Rendering sections beautifully...",
-                  "Checking fonts and spacing...",
-                  "Preview is almost ready...",
-                ]
-          }
-        />
-      );
+  const handleCreateDraft = async () => {
+    const currentDraft = await getResumeDraft();
+    if (!isResumeDraftComplete(currentDraft)) {
+      showErrorMessage("Complete your resume", "Finish all five sections before creating it");
+      return;
     }
+    setCreatingResume(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) throw new Error("Your session has expired. Please log in again.");
+      const user = await getAuthUser();
+      const request = (url, body, method = "POST") =>
+        fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+      const templateId = Number(parsedTemplateId);
+      const userId = Number(user?.id);
+      if (!Number.isFinite(templateId) || templateId <= 0) throw new Error("The selected template is invalid. Please choose a template again.");
+      if (!Number.isFinite(userId) || userId <= 0) throw new Error("Your user session is invalid. Please log in again.");
+      const response = await request(`${API_BASE_URL}/resumes`, { title: currentDraft.title?.trim() || "My Resume", userId, templateId });
+      const data = await response.json().catch(() => null);
+      const createdId = data?.id ?? data?.resumeId;
+      if (!response.ok || !createdId) throw new Error(data?.message || data?.error || "Could not create resume");
+      const send = async (url, body) => {
+        const backendBody = { ...body };
+        delete backendBody.id;
+        delete backendBody.resume;
+        const result = await request(url, { ...backendBody, resume: { id: createdId } });
+        if (!result.ok) {
+          const details = await result.text().catch(() => "");
+          throw new Error(`${url.replace(API_BASE_URL, "")} returned ${result.status}${details ? `: ${details}` : ""}`);
+        }
+      };
+      const personalResult = await request(`${API_BASE_URL}/personal/${createdId}`, { ...currentDraft.personal, resumeId: createdId }, "PUT");
+      if (!personalResult.ok) throw new Error(`/personal/${createdId} returned ${personalResult.status}`);
+      const sectionRequests = [
+        ...currentDraft.education.map((item) => ["Education", `${API_BASE_URL}/education`, item]),
+        ...currentDraft.experience.map((item) => ["Work Experience", `${API_BASE_URL}/work-experience`, item]),
+        ...currentDraft.skills.map((item) => ["Skills", `${API_BASE_URL}/skills`, { skillName: item.name, category: item.category, rating: item.rating, sortOrder: 0 }]),
+        ...currentDraft.projects.map((item) => ["Projects", `${API_BASE_URL}/projects`, item]),
+      ];
+      const results = await Promise.allSettled(sectionRequests.map(([, url, body]) => send(url, body)));
+      const failures = results.map((result, index) => (result.status === "rejected" ? sectionRequests[index][0] : null)).filter(Boolean);
+      if (failures.length) throw new Error(`Could not save: ${[...new Set(failures)].join(", ")}`);
+      await clearResumeDraft();
+      router.replace("/");
+    } catch (error) {
+      showErrorMessage("Could not create resume", error?.message || "Please try again");
+    } finally {
+      setCreatingResume(false);
+    }
+  };
 
-    if (!resumeId && !isDraftFlow) {
-      return (
-        <View className="flex-1 bg-[#F7F9FC]">
-          <View className="rounded-b-[34px] bg-[#102A43] px-5 pb-7" style={{ paddingTop: Math.max(insets.top + 12, 24) }}>
-            <View className="flex-row items-center justify-between">
-              <TouchableOpacity onPress={() => router.push("/Template")} className="h-11 w-11 items-center justify-center rounded-2xl bg-[#193B5A]">
-                <MaterialIcons name="arrow-back" size={22} color="#F4C95D" />
-              </TouchableOpacity>
-              <Text className="text-xs font-bold uppercase tracking-[2px] text-[#F4C95D]">Resume setup</Text>
-              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[#F4C95D]">
-                <MaterialIcons name="description" size={22} color="#102A43" />
-              </View>
+  if (!resumeId && creatingResume) {
+    return <BookLoader visible={creatingResume} />;
+  }
+
+  if (actionLoading) {
+    return (
+      <SnapResumeLoader
+        messages={
+          actionType === "export"
+            ? ["Generating your PDF export...", "Adjusting layout and alignment...", "Optimizing for print quality...", "Finalizing your download..."]
+            : ["Loading your resume preview...", "Rendering sections beautifully...", "Checking fonts and spacing...", "Preview is almost ready..."]
+        }
+      />
+    );
+  }
+
+  // Setup Screen (Initial Title Assignment)
+  if (!resumeId && !isDraftFlow) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+        {/* Top Header */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justify: "space-between",
+            paddingHorizontal: 20,
+            paddingTop: Math.max(insets.top + 12, 54),
+            paddingBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: T.fieldBorder,
+          }}
+        >
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/Template")} style={{ padding: 4 }}>
+            <MaterialIcons name="arrow-back" size={24} color={T.caps} />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 20, fontWeight: "800", color: T.ink }}>Resume Setup</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 120 }}>
+          {/* Mascot Banner Stage */}
+          <View style={{ alignItems: "center", marginBottom: 28 }}>
+            <View style={{ width: 90, height: 90, borderRadius: 24, backgroundColor: T.orangeBg, overflow: "hidden", marginBottom: 12 }}>
+              <LottieView source={require("../../../assets/images/lionblink.json")} autoPlay loop style={{ width: "100%", height: "100%" }} />
             </View>
-            <View className="mt-6 flex-row items-center">
-              <View className="h-24 w-24 items-center justify-center rounded-full bg-[#F4C95D]">
-                <LottieView source={require("../../../assets/images/lionblink.json")} autoPlay loop style={{ width: 90, height: 90 }} />
-              </View>
-              <View className="ml-4 flex-1">
-                <Text className="text-3xl font-bold text-white">Let&apos;s begin!</Text>
-                <Text className="mt-2 text-sm leading-5 text-[#C9D6E3]">Start with a title, then build each section of your resume.</Text>
-              </View>
-            </View>
+            <Text style={{ fontSize: 24, fontWeight: "800", color: T.ink, textAlign: "center" }}>Let's begin!</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: T.caps, textAlign: "center", marginTop: 4, maxWidth: 280 }}>
+              Start with a title, then build each section of your resume.
+            </Text>
           </View>
 
-          <ScrollView style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
-            <View className="mb-5 flex-row items-center justify-between">
-              <View>
-                <Text className="text-xs font-bold uppercase tracking-[2px] text-[#2A9D8F]">Getting started</Text>
-                <Text className="mt-1 text-2xl font-bold text-[#102A43]">Set up your resume</Text>
-            <View className="absolute bottom-7 left-7 top-16 w-1 rounded-full bg-[#D7E6E4]" />
+          {/* Form Box */}
+          <View
+            style={{
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: T.fieldBorder,
+              backgroundColor: "#FFFFFF",
+              padding: 20,
+              shadowColor: "#000000",
+              shadowOpacity: 0.04,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 2,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: T.blueBg, alignItems: "center", justifyContent: "center" }}>
+                <MaterialIcons name="description" size={24} color={T.blue} />
               </View>
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-[#FDE2DD]">
-                <MaterialIcons name="flag" size={20} color="#E76F51" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: "800", color: T.ink }}>{templateName || "Selected template"}</Text>
+                <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.6, color: T.caps, textTransform: "uppercase" }}>Selected Template</Text>
               </View>
             </View>
 
-            <View className="rounded-[28px] border border-[#D9E2EC] bg-white p-5 shadow-sm">
-              <View className="flex-row items-center gap-3">
-                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-[#DDF3F0]">
-                  <MaterialIcons name="description" size={27} color="#2A9D8F" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xl font-bold text-[#102A43]">{templateName || "Selected template"}</Text>
-                  <Text className="mt-1 text-xs font-bold uppercase tracking-widest text-[#2A9D8F]">Your career canvas</Text>
+            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps, marginBottom: 8 }}>
+              Resume Title
+            </Text>
+
+            <TextInput
+              value={resumeTitle}
+              onChangeText={setResumeTitle}
+              placeholder="e.g. Product designer journey"
+              placeholderTextColor={T.caps}
+              style={{
+                backgroundColor: T.fieldBg,
+                borderWidth: 1,
+                borderColor: T.fieldBorder,
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                fontWeight: "600",
+                color: T.ink,
+                marginBottom: 20,
+              }}
+              editable={!creatingResume}
+            />
+
+            {/* 3D Duolingo CTA */}
+            <TouchableOpacity activeOpacity={0.92} onPress={handleCreateAndContinue} disabled={creatingResume}>
+              <View style={{ borderRadius: 20, paddingBottom: 4, backgroundColor: T.greenPressed }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 20, paddingVertical: 16, backgroundColor: T.green }}>
+                  <MaterialIcons name="play-arrow" size={22} color="#FFFFFF" />
+                  <Text style={{ marginLeft: 6, fontSize: 15, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" }}>CREATE RESUME</Text>
                 </View>
               </View>
-              <Text className="mt-5 text-sm leading-5 text-[#486581]">{templateDescription || "Build your professional resume with this template."}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
-              <Text className="mb-2 mt-6 text-sm font-bold uppercase tracking-widest text-[#486581]">Resume title</Text>
-              <TextInput
-                value={resumeTitle}
-                onChangeText={setResumeTitle}
-                placeholder="e.g. Product designer journey"
-                placeholderTextColor="#829AB1"
-                className="rounded-2xl border-2 border-[#DDF3F0] bg-[#F7FDFC] px-4 py-4 text-base text-[#102A43]"
-                editable={!creatingResume}
-              />
+  // Workspace View (Sections Builder)
+  const completedCount = draft ? ["personal-information", "education", "experience", "skills", "projects"].filter((section) => isSectionComplete(section, draft)).length : 0;
+  const progressPercent = Math.round((completedCount / 5) * 100);
+  const isDraftReady = draft && isResumeDraftComplete(draft);
+  const remainingCount = 5 - completedCount;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Header Bar */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justify: "space-between",
+          paddingHorizontal: 20,
+          paddingTop: Math.max(insets.top + 12, 54),
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: T.fieldBorder,
+        }}
+      >
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/Template")} style={{ padding: 4 }}>
+          <MaterialIcons name="arrow-back" size={24} color={T.caps} />
+        </TouchableOpacity>
+        <Text style={{ fontSize: 20, fontWeight: "800", color: T.ink }}>{templateName || "Resume"}</Text>
+        <View style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: T.orangeBg }}>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: T.orange }}>DRAFT</Text>
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120 }}>
+        {/* Progress Tracker Card */}
+        <View
+          style={{
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: T.fieldBorder,
+            backgroundColor: T.fieldBg,
+            padding: 18,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: T.orangeBg, alignItems: "center", justifyContent: "center" }}>
+                <MaterialIcons name="alt-route" size={20} color={T.orange} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 10.5, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", color: T.caps }}>YOUR RESUME PATH</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: T.ink, marginTop: 1 }}>{completedCount} of 5 sections saved</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: "900", color: T.blue }}>{progressPercent}%</Text>
+          </View>
+
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: T.fieldBorder, overflow: "hidden" }}>
+            <View style={{ height: "100%", width: `${progressPercent}%`, borderRadius: 4, backgroundColor: T.green }} />
+          </View>
+        </View>
+
+        {/* Action Header Button Section */}
+        <View style={{ marginBottom: 20 }}>
+          {isDraftFlow ? (
+            <View>
+              {/* Helpful Nudge Indicator when disabled */}
+              {!isDraftReady && (
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 8 }}>
+                  <MaterialIcons name="info-outline" size={15} color={T.orange} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: T.orange }}>
+                    Complete {remainingCount} more section{remainingCount > 1 ? "s" : ""} to enable
+                  </Text>
+                </View>
+              )}
 
               <TouchableOpacity
-                className={`mt-5 flex-row items-center justify-center rounded-2xl py-4 ${resumeTitle.trim() ? 'bg-[#E76F51]' : 'bg-[#F2B7A9]'}`}
-                activeOpacity={0.85}
-                onPress={handleCreateAndContinue}
-                disabled={creatingResume}
+                activeOpacity={isDraftReady ? 0.92 : 1}
+                onPress={handleCreateDraft}
+                disabled={creatingResume || !isDraftReady}
+                style={{ opacity: isDraftReady ? 1 : 0.7 }}
               >
-                <MaterialIcons name="play-arrow" size={21} color="#FFFFFF" />
-                <Text className="ml-2 font-bold text-white">Create resume</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="mt-5 flex-row items-center justify-center gap-2">
-              {[0, 1, 2, 3, 4].map((step) => (
-                <View key={step} className={`h-2.5 w-2.5 rounded-full ${step === 0 ? 'bg-[#E76F51]' : 'bg-[#D9E2EC]'}`} />
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      );
-    }
-
-    return(
-        <View className="flex-1 bg-[#EDF4F5]">
-        <LinearGradient
-          colors={["#E9F5F4", "#F3F1FA", "#FFF7EC"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        />
-        <TemplatePageHeader
-          eyebrow="Resume workspace"
-          title={templateName || "Resume"}
-          accent="#172B4D"
-          accentSoft="#DDF3F0"
-          icon="description"
-          onBack={() => router.push("/Template")}
-          trailing={<View className="flex-row items-center gap-1 rounded-full bg-[#F4C95D] px-3 py-2"><MaterialIcons name="edit" size={15} color="#102A43" /><Text className="text-xs font-bold text-[#102A43]">Draft</Text></View>}
-        />
-        {/* <View className="w-full px-4 pt-4" style={{ maxWidth: 760, alignSelf: "center" }}>
-          <Text className="text-sm text-[#486581]">Complete each section to build a polished resume.</Text>
-          <View className="mt-4 flex-row items-center gap-3 rounded-2xl border border-[#D9E2EC] bg-white p-4">
-            <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#E6E4FF]">
-              <MaterialIcons name="checklist" size={21} color="#5B4BDB" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-bold text-[#102A43]">Resume checklist</Text>
-              <Text className="mt-1 text-xs text-[#486581]">Add your details, review the layout, then export.</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={21} color="#829AB1" />
-          </View>
-        </View> */}
-
-        <View className="flex-row gap-3 px-4 pb-1 pt-4">
-          {isDraftFlow ? (
-            <TouchableOpacity className={`flex-1 flex-row items-center justify-center rounded-2xl py-3 ${draft && isResumeDraftComplete(draft) ? "bg-[#E76F51]" : "bg-[#F2B7A9]"}`} activeOpacity={0.9} onPress={handleCreateDraft} disabled={creatingResume || !draft || !isResumeDraftComplete(draft)}>
-              <MaterialIcons name="check-circle" size={18} color="#FFFFFF" />
-              <Text className="ml-2 font-bold text-white">Create Resume</Text>
-            </TouchableOpacity>
-          ) : null}
-          {!isDraftFlow ? <>
-          <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center rounded-2xl border border-[#D9E2EC] bg-white py-3"
-            activeOpacity={0.85}
-            onPress={handlePreview}
-          >
-            <MaterialIcons name="visibility" size={18} color="#176B67" />
-            <Text className="ml-2 font-bold text-[#176B67]">Preview</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center rounded-2xl bg-[#E76F51] py-3"
-            activeOpacity={0.85}
-            onPress={handleExportPdf}
-          >
-            <MaterialIcons name="file-download" size={18} color="#FFFFFF" />
-            <Text className="ml-2 font-bold text-white">Export PDF</Text>
-          </TouchableOpacity>
-          </> : null}
-        </View>
-
-        <View className="mx-4 mt-3 rounded-[22px] border border-white/80 bg-white/70 px-4 py-3 shadow-sm">
-          <View className="flex-row items-center justify-between"><View className="flex-row items-center gap-3"><View className="h-9 w-9 items-center justify-center rounded-full bg-[#FFF4CE]"><MaterialIcons name="route" size={19} color="#D99B00" /></View><View><Text className="text-xs font-bold uppercase tracking-[1px] text-[#829AB1]">Your resume path</Text><Text className="mt-0.5 text-sm font-bold text-[#102A43]">{draft ? ["personal-information", "education", "experience", "skills", "projects"].filter((section) => isSectionComplete(section, draft)).length : 0} of 5 sections saved</Text></View></View><Text className="text-lg font-bold text-[#3978D2]">{draft ? `${["personal-information", "education", "experience", "skills", "projects"].filter((section) => isSectionComplete(section, draft)).length * 20}%` : "0%"}</Text></View>
-          <Animated.View className="mt-4" style={{ flexDirection: "row", alignItems: "center", width: "100%", opacity: progressValue.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] }) }}>
-            {templateDetailTabs.map((tab, index) => {
-              const complete = isSectionComplete(tab.name, draft);
-              const previousComplete = index === 0 || isSectionComplete(templateDetailTabs[index - 1].name, draft);
-              return <View key={tab.name} style={{ flex: 1, flexDirection: "row", alignItems: "center" }}><View style={{ flex: 1, alignItems: "center" }}><View className="h-7 w-7 items-center justify-center rounded-full border-2" style={{ borderColor: complete ? "#168A83" : "#C7D6E2", backgroundColor: complete ? "#168A83" : "#FFFFFF" }}><MaterialIcons name={complete ? "check" : "lock-outline"} size={14} color={complete ? "#FFFFFF" : "#829AB1"} /></View></View>{index < templateDetailTabs.length - 1 ? <View className="h-1 flex-1 overflow-hidden rounded-full bg-[#DCE8FA]"><Animated.View className="h-full rounded-full bg-[#168A83]" style={{ width: previousComplete && complete ? "100%" : "0%" }} /></View> : null}</View>;
-            })}
-          </Animated.View>
-          <View className="mt-2 flex-row"><Text className="flex-1 text-center text-[10px] font-semibold text-[#168A83]">Profile</Text><Text className="flex-1 text-center text-[10px] font-semibold text-[#829AB1]">Education</Text><Text className="flex-1 text-center text-[10px] font-semibold text-[#829AB1]">Experience</Text><Text className="flex-1 text-center text-[10px] font-semibold text-[#829AB1]">Skills</Text><Text className="flex-1 text-center text-[10px] font-semibold text-[#829AB1]">Projects</Text></View>
-        </View>
-
-        <Animated.ScrollView
-          style={{ width: "100%", maxWidth: 760, alignSelf: "center" }}
-            bounces
-            alwaysBounceVertical
-            scrollEventThrottle={16}
-            contentContainerStyle={{
-              paddingBottom: Math.max(insets.bottom + 56, 160),
-              paddingTop: 10,
-              paddingHorizontal: width < 480 ? 12 : 20,
-            }}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: true }
-            )}
-        >
-            <View className="mb-3 flex-row items-center justify-between">
-              <View><Text className="text-xl font-bold text-[#102A43]">Build your resume</Text><Text className="mt-1 text-xs text-[#486581]">Add the details that make you stand out.</Text></View>
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-[#FFF4CE]"><MaterialIcons name="edit-note" size={21} color="#D99B00" /></View>
-            </View>
-            {templateDetailTabs.map((tab, index) => {
-              const inputRange = [(index - 1) * 120, index * 120, (index + 1) * 120];
-              const translateY = scrollY.interpolate({
-                inputRange,
-                outputRange: [0, 0, -14],
-                extrapolate: "clamp",
-              });
-              const scale = scrollY.interpolate({
-                inputRange,
-                outputRange: [1, 1, 1],
-                extrapolate: "clamp",
-              });
-              const opacity = scrollY.interpolate({
-                inputRange,
-                outputRange: [1, 1, 1],
-                extrapolate: "clamp",
-              });
-
-              const palette = tabPalette[index];
-              const entrance = cardEntrances[tab.name] || new Animated.Value(1);
-              const pressScale = cardPressScales[tab.name] || new Animated.Value(1);
-
-              return (
-                <Animated.View
-                  key={tab.name}
-                  className="w-full pl-2"
+                <View
                   style={{
-                    width: "100%",
-                    transform: [
-                      { translateY },
-                      { scale },
-                      { scale: entrance },
-                      { scale: pressScale },
-                    ],
-                    opacity: Animated.multiply(opacity, entrance),
+                    borderRadius: 16,
+                    paddingBottom: 4,
+                    backgroundColor: isDraftReady ? T.greenPressed : T.disabledBorder,
                   }}
                 >
-                  <TouchableOpacity
-                    className="w-full flex-row"
-                    onPress={() => handleSectionPress(tab)}
-                    activeOpacity={0.85}
-                    onPressIn={() => {
-                      Animated.spring(pressScale, {
-                        toValue: 0.97,
-                        friction: 7,
-                        tension: 180,
-                        useNativeDriver: true,
-                      }).start();
-                    }}
-                    onPressOut={() => {
-                      Animated.spring(pressScale, {
-                        toValue: 1,
-                        friction: 7,
-                        tension: 180,
-                        useNativeDriver: true,
-                      }).start();
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 16,
+                      paddingVertical: 14,
+                      backgroundColor: isDraftReady ? T.green : T.disabledBg,
                     }}
                   >
-                  <LinearGradient
-                  colors={palette.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  className="relative mb-3 min-h-[92px] w-full flex-row items-center rounded-[22px] border p-3 shadow-sm"
-                  style={{
-                    width: "100%",
-                    borderColor: "rgba(255,255,255,0.9)",
-                    backgroundColor: "rgba(255,255,255,0.55)",
-                    shadowColor: "#9AAABD",
-                    shadowOffset: { width: 0, height: 5 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 5,
-                  }}
-                >
+                    <MaterialIcons
+                      name={isDraftReady ? "check-circle" : "lock"}
+                      size={18}
+                      color={isDraftReady ? "#FFFFFF" : T.caps}
+                    />
+                    <Text
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 13.5,
+                        fontWeight: "900",
+                        letterSpacing: 0.6,
+                        color: isDraftReady ? "#FFFFFF" : T.caps,
+                      }}
+                    >
+                      CREATE RESUME
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handlePreview}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justify: "center",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: T.fieldBorder,
+                  backgroundColor: T.fieldBg,
+                }}
+              >
+                <MaterialIcons name="visibility" size={18} color={T.ink} />
+                <Text style={{ marginLeft: 6, fontSize: 13.5, fontWeight: "700", color: T.ink }}>Preview</Text>
+              </TouchableOpacity>
 
-                <View className="h-[56px] w-[56px] items-center justify-center rounded-full border-4 bg-white/75" style={{ borderColor: palette.icon }}>
-                    <MaterialIcons name={`${tab.icon}`} size={25} color={palette.icon}/>
-                  </View>
-                  <View className="absolute left-[49px] top-[-4px] h-6 w-6 items-center justify-center rounded-full border-2 border-white" style={{ backgroundColor: palette.icon }}>
-                    <Text className="text-[10px] font-bold text-white">{index + 1}</Text>
-                  </View>
-                <View className="ml-4 min-w-0 flex-1"><Text numberOfLines={1} className="text-base font-bold text-[#102A43]">{tab.label}</Text><View className="mt-1 flex-row items-center"><View className="flex-row items-center rounded-full px-2 py-1" style={{ backgroundColor: isSectionComplete(tab.name, draft) ? palette.icon : "#E8EDF2" }}><MaterialIcons name={isSectionComplete(tab.name, draft) ? "check" : "edit"} size={11} color={isSectionComplete(tab.name, draft) ? "#FFFFFF" : "#829AB1"} /><Text className="ml-1 text-[10px] font-bold uppercase tracking-[0.8px]" style={{ color: isSectionComplete(tab.name, draft) ? "#FFFFFF" : "#829AB1" }}>{isSectionComplete(tab.name, draft) ? "Saved in draft" : "Needs details"}</Text></View></View></View>
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-white/70"><MaterialIcons name="arrow-forward" size={18} color={palette.icon}/></View>
-                </LinearGradient>
-            </TouchableOpacity>
-              </Animated.View>
-              )})}
-          
-            </Animated.ScrollView>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleExportPdf}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justify: "center",
+                  borderRadius: 16,
+                  backgroundColor: T.blue,
+                }}
+              >
+                <MaterialIcons name="file-download" size={18} color="#FFFFFF" />
+                <Text style={{ marginLeft: 6, fontSize: 13.5, fontWeight: "700", color: "#FFFFFF" }}>Export PDF</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-    )
-}
+
+        {/* Section Cards List */}
+        <Text style={{ marginBottom: 14, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps }}>SECTIONS</Text>
+
+        {templateDetailTabs.map((tab, index) => {
+          const palette = tabPalette[index % tabPalette.length];
+          const isComplete = isSectionComplete(tab.name, draft);
+
+          return (
+            <TouchableOpacity
+              key={tab.name}
+              activeOpacity={0.85}
+              onPress={() => handleSectionPress(tab)}
+              style={{
+                marginBottom: 12,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isComplete ? T.green : T.fieldBorder,
+                backgroundColor: isComplete ? T.greenBg : "#FFFFFF",
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                shadowColor: "#000000",
+                shadowOpacity: 0.04,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 1,
+              }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: palette.bg, alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+                <MaterialIcons name={tab.icon} size={22} color={palette.icon} />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "800", color: T.ink }}>
+                  {tab.label}
+                </Text>
+                <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 12, fontWeight: "600", color: T.caps }}>
+                  {tab.description}
+                </Text>
+              </View>
+
+              <View style={{ marginLeft: 10, alignItems: "center", justifyContent: "center" }}>
+                {isComplete ? (
+                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: T.green, alignItems: "center", justifyContent: "center" }}>
+                    <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                  </View>
+                ) : (
+                  <MaterialIcons name="chevron-right" size={24} color={T.caps} />
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+};
+
 export default TemplateDetail;

@@ -2,26 +2,88 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Easing, Platform,
-  Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView
+  Animated, Easing, StyleSheet,
+  Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView, Linking
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { API_BASE_URL } from '../../constants/api';
 import { showErrorMessage } from '../../utils/errorMessageBus';
 
-const { width } = Dimensions.get('window');
-const ANIMATION_SIZE = Platform.OS === 'web' ? 160 : Math.min(Math.max(width * 0.45, 250), 250);
-const TYPING_TEXT = "Hi! Let's get started";
+const TYPING_TEXT = 'Join the learning fun!';
+const MASCOT_SIZE = 200;
 
-const C = {
-  amber: '#EF9F27',
-  brown: '#7B3F00',
-  darkBrown: '#412402',
-  lightAmber: '#FAC775',
-  cream: '#FFF8EE',
-  amberBorder: '#BA7517',
-  green: '#639922',
+// Palette pulled directly from the uxpilot export: white canvas, a single
+// bright blue for the brand/links, a single vivid green for the primary
+// action, and neutral grays for fields and helper copy.
+const T = {
+  blue: '#3B82F6',
+  orange: '#F5A623',
+  green: '#58CC02',
+  greenPressed: '#46A302',
+  ink: '#141821',
+  mascotBg: '#BFE7EA',
+  fieldBg: '#F6F6F7',
+  fieldBorder: '#E6E7EA',
+  bubbleBorder: '#E6E7EA',
+  placeholder: '#A9ADB6',
+  caps: '#9AA0AC',
 };
+
+// Bounces a bit on press — applied to every touchable in the screen so
+// interaction feels alive without relying on opacity flicker alone.
+function Bouncy({ onPress, children, style, disabled, scaleTo = 0.97 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v) => Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={() => to(scaleTo)}
+      onPressOut={() => to(1)}
+      style={style}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// Plain pill field, no icon by default — matches the mockup — but can
+// show a show/hide toggle for password fields. Still animates its
+// entrance (staggered via `delay`) for a bit of polish.
+function FormField({ value, onChangeText, placeholder, secureTextEntry, keyboardType, autoCapitalize, delay = 0, onToggleSecure, secureVisible }) {
+  const enterOpacity = useRef(new Animated.Value(0)).current;
+  const enterY = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(enterOpacity, { toValue: 1, duration: 380, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(enterY, { toValue: 0, duration: 380, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: enterOpacity, transform: [{ translateY: enterY }], marginBottom: 12 }}>
+      <View style={styles.fieldRow}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={T.placeholder}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          style={[styles.input, onToggleSecure && { paddingRight: 40 }]}
+        />
+        {onToggleSecure && (
+          <TouchableOpacity onPress={onToggleSecure} style={styles.eyeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MaterialIcons name={secureVisible ? 'visibility-off' : 'visibility'} size={20} color={T.caps} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -29,10 +91,17 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [displayedText, setDisplayedText] = useState('');
   const [typingDone, setTypingDone] = useState(false);
   const cursorOpacity = useRef(new Animated.Value(1)).current;
+  const stagePop = useRef(new Animated.Value(0.85)).current;
+
+  useEffect(() => {
+    Animated.spring(stagePop, { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }).start();
+  }, []);
 
   useEffect(() => {
     let i = 0;
@@ -40,7 +109,7 @@ export default function SignupScreen() {
       i++;
       setDisplayedText(TYPING_TEXT.slice(0, i));
       if (i >= TYPING_TEXT.length) { clearInterval(t); setTypingDone(true); }
-    }, 70);
+    }, 40);
     return () => clearInterval(t);
   }, []);
 
@@ -65,8 +134,6 @@ export default function SignupScreen() {
     if (!confirmPassword.trim()) missing.push('Confirm Password');
     return missing;
   };
-
-  const isFormComplete = getMissingFields().length === 0;
 
   const onSignup = async () => {
     const missingFields = getMissingFields();
@@ -108,82 +175,38 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.cream }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#FFFFFF' }} behavior="padding">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <View style={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 32 }}>
 
-        {/* Golden header */}
-        <View style={{
-          backgroundColor: C.lightAmber,
-          paddingTop: 60,
-          paddingBottom: 32,
-          alignItems: 'center',
-          borderBottomLeftRadius: 36,
-          borderBottomRightRadius: 36,
-        }}>
-          {/* Back button */}
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-            style={{ position: 'absolute', top: 60, left: 20, zIndex: 20 }}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={C.darkBrown} />
-          </TouchableOpacity>
+          {/* Top bar: back arrow / brand / help */}
+          <View style={styles.topBar}>
+            <Bouncy onPress={() => router.back()} scaleTo={0.85}>
+              <MaterialIcons name="arrow-back" size={22} color="#9AA0AC" />
+            </Bouncy>
 
-          <Text style={{ fontSize: 11, fontWeight: '500', color: C.darkBrown, letterSpacing: 2, marginBottom: 8 }}>
-            RESUMEBUILDER
-          </Text>
-
-          {/* Lion + speech bubble */}
-          <View style={{ position: 'relative', alignItems: 'center' }}>
-            <View style={{
-              position: 'absolute',
-              top: 22,
-              left: ANIMATION_SIZE - 80,
-              zIndex: 10,
-              backgroundColor: '#fff',
-              borderRadius: 10,
-              borderWidth: 1.5,
-              borderColor: C.amberBorder,
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}>
-              {/* Bubble tail */}
-              <View style={{
-                position: 'absolute',
-                left: -7,
-                top: 8,
-                borderTopWidth: 5,
-                borderBottomWidth: 5,
-                borderRightWidth: 7,
-                borderTopColor: 'transparent',
-                borderBottomColor: 'transparent',
-                borderRightColor: C.amberBorder,
-              }} />
-              <View style={{
-                position: 'absolute',
-                left: -4,
-                top: 9,
-                borderTopWidth: 4,
-                borderBottomWidth: 4,
-                borderRightWidth: 5,
-                borderTopColor: 'transparent',
-                borderBottomColor: 'transparent',
-                borderRightColor: '#fff',
-                zIndex: 1,
-              }} />
-              <Text style={{ fontSize: 12, color: C.darkBrown, fontWeight: '500' }}>
-                {displayedText}
-              </Text>
-              {!typingDone && (
-                <Animated.Text style={{ fontSize: 12, color: C.amberBorder, fontWeight: '500', opacity: cursorOpacity }}>
-                  |
-                </Animated.Text>
-              )}
+            <View style={styles.brandRow}>
+              <MaterialIcons name="school" size={18} color={T.orange} style={{ marginRight: 6 }} />
+              <Text style={styles.brand}>Resume Builder</Text>
             </View>
 
-            <View style={{ width: ANIMATION_SIZE, height: ANIMATION_SIZE, overflow: 'hidden' }}>
+            <Text style={styles.help}>HELP</Text>
+          </View>
+
+          {/* Mascot stage: speech bubble centered above the mascot */}
+          <Animated.View style={{ alignItems: 'center', marginTop: 26, transform: [{ scale: stagePop }] }}>
+            <View style={styles.bubbleWrap}>
+              <Text style={styles.bubbleText}>
+                {displayedText}
+                {!typingDone && (
+                  <Animated.Text style={{ opacity: cursorOpacity, color: T.ink }}> |</Animated.Text>
+                )}
+              </Text>
+            </View>
+            <View style={styles.bubbleTailOuter} />
+            <View style={styles.bubbleTailInner} />
+
+            <View style={styles.mascotBadge}>
               <LottieView
                 source={require('../../assets/images/lionblink.json')}
                 autoPlay
@@ -192,184 +215,200 @@ export default function SignupScreen() {
                 style={{ width: '100%', height: '100%' }}
               />
             </View>
-          </View>
+          </Animated.View>
 
-          <Text style={{ fontSize: 14, color: C.darkBrown, fontWeight: '500', marginTop: 8 }}>
-            Create your account
-          </Text>
-        </View>
+          <Text style={styles.heading}>CREATE PROFILE</Text>
 
-        {/* Form */}
-        <View style={{ padding: 20 }}>
+          <FormField value={name} onChangeText={setName} placeholder="Full Name" delay={0} />
+          <FormField value={email} onChangeText={setEmail} placeholder="Email" keyboardType="email-address" autoCapitalize="none" delay={60} />
+          <FormField value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry={!showPassword} onToggleSecure={() => setShowPassword((v) => !v)} secureVisible={showPassword} delay={120} />
+          <FormField value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm Password" secureTextEntry={!showConfirmPassword} onToggleSecure={() => setShowConfirmPassword((v) => !v)} secureVisible={showConfirmPassword} delay={160} />
 
-          {/* Full Name field */}
-          <View style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: '500', color: C.brown, marginBottom: 4, letterSpacing: 1 }}>
-              FULL NAME
-            </Text>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#fff',
-              borderWidth: 1.5,
-              borderColor: C.amber,
-              borderRadius: 12,
-              paddingHorizontal: 12,
-            }}>
-              <MaterialIcons name="badge" size={18} color={C.amberBorder} />
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter full name"
-                placeholderTextColor="#B89A78"
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  fontSize: 14,
-                  color: C.darkBrown,
-                  paddingVertical: 10,
-                }}
-              />
+          <Bouncy onPress={onSignup} disabled={submitting} scaleTo={0.98}>
+            <View style={styles.ctaBase}>
+              <View style={[styles.cta, submitting && { backgroundColor: T.greenPressed }]}>
+                <Text style={styles.ctaText}>
+                  {submitting ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
+                </Text>
+              </View>
             </View>
-          </View>
+          </Bouncy>
 
-          {/* Email field */}
-          <View style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: '500', color: C.brown, marginBottom: 4, letterSpacing: 1 }}>
-              EMAIL
-            </Text>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#fff',
-              borderWidth: 1.5,
-              borderColor: C.amber,
-              borderRadius: 12,
-              paddingHorizontal: 12,
-            }}>
-              <MaterialIcons name="mail-outline" size={18} color={C.amberBorder} />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter email"
-                placeholderTextColor="#B89A78"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  fontSize: 14,
-                  color: C.darkBrown,
-                  paddingVertical: 10,
-                }}
-              />
+          {/* <View style={styles.termsBlock}>
+            <Text style={styles.termsCaps}>BY SIGNING UP, YOU AGREE TO OUR</Text>
+            <View style={{ flexDirection: 'row' }}>
+              <Bouncy onPress={() => Linking.openURL('https://example.com/terms')} scaleTo={0.92}>
+                <Text style={styles.termsLink}>Terms</Text>
+              </Bouncy>
+              <Text style={styles.termsText}> and </Text>
+              <Bouncy onPress={() => Linking.openURL('https://example.com/privacy')} scaleTo={0.92}>
+                <Text style={styles.termsLink}>Privacy Policy</Text>
+              </Bouncy>
             </View>
+          </View> */}
+
+          <View style={styles.loginBlock}>
+            <Text style={styles.termsCaps}>HAVE AN ACCOUNT?</Text>
+            <Bouncy onPress={() => router.push('/login')} scaleTo={0.92}>
+              <Text style={[styles.termsLink, { marginTop: 2 }]}>Log in</Text>
+            </Bouncy>
           </View>
-
-          {/* Password field */}
-          <View style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: '500', color: C.brown, marginBottom: 4, letterSpacing: 1 }}>
-              PASSWORD
-            </Text>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#fff',
-              borderWidth: 1.5,
-              borderColor: C.amber,
-              borderRadius: 12,
-              paddingHorizontal: 12,
-            }}>
-              <MaterialIcons name="lock" size={18} color={C.amberBorder} />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter password"
-                placeholderTextColor="#B89A78"
-                secureTextEntry
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  fontSize: 14,
-                  color: C.darkBrown,
-                  paddingVertical: 10,
-                }}
-              />
-            </View>
-          </View>
-
-          {/* Confirm Password field */}
-          <View style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: '500', color: C.brown, marginBottom: 4, letterSpacing: 1 }}>
-              CONFIRM PASSWORD
-            </Text>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#fff',
-              borderWidth: 1.5,
-              borderColor: C.amber,
-              borderRadius: 12,
-              paddingHorizontal: 12,
-            }}>
-              <MaterialIcons name="lock-outline" size={18} color={C.amberBorder} />
-              <TextInput
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Re-enter password"
-                placeholderTextColor="#B89A78"
-                secureTextEntry
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  fontSize: 14,
-                  color: C.darkBrown,
-                  paddingVertical: 10,
-                }}
-              />
-            </View>
-          </View>
-
-          {/* CTA Button */}
-          <TouchableOpacity
-            style={{
-              backgroundColor: isFormComplete ? C.amber : C.lightAmber,
-              borderRadius: 12,
-              paddingVertical: 13,
-              alignItems: 'center',
-              marginTop: 4,
-              flexDirection: 'row',
-              justifyContent: 'center',
-            }}
-            onPress={onSignup}
-            activeOpacity={0.85}
-            disabled={submitting}
-          >
-            <Text style={{ color: C.darkBrown, fontSize: 14, fontWeight: '500' }}>
-              {submitting ? 'Creating account...' : 'Create Account'}
-            </Text>
-            {!submitting && (
-              <MaterialIcons name="arrow-forward" size={18} color={C.darkBrown} style={{ marginLeft: 6 }} />
-            )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
-            <View style={{ flex: 1, height: 0.5, backgroundColor: C.amber, opacity: 0.3 }} />
-            <Text style={{ fontSize: 11, color: C.brown, marginHorizontal: 8 }}>already a member?</Text>
-            <View style={{ flex: 1, height: 0.5, backgroundColor: C.amber, opacity: 0.3 }} />
-          </View>
-
-          {/* Login row */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-            <Text style={{ color: C.brown, fontSize: 13 }}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/login')}>
-              <Text style={{ color: C.amberBorder, fontSize: 13, fontWeight: '500' }}>Login</Text>
-            </TouchableOpacity>
-          </View>
-
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brand: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: T.blue,
+  },
+  help: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: T.blue,
+    letterSpacing: 0.4,
+  },
+  bubbleWrap: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.bubbleBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  bubbleText: {
+    fontSize: 13.5,
+    fontWeight: '500',
+    color: T.ink,
+    textAlign: 'center',
+  },
+  bubbleTailOuter: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 7,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: T.bubbleBorder,
+    marginTop: -1,
+  },
+  bubbleTailInner: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 4.5,
+    borderRightWidth: 4.5,
+    borderTopWidth: 5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FFFFFF',
+    marginTop: -6,
+    marginBottom: 16,
+  },
+  mascotBadge: {
+    width: MASCOT_SIZE,
+    height: MASCOT_SIZE,
+    borderRadius: 18,
+
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  heading: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: T.ink,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  fieldRow: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  input: {
+    backgroundColor: T.fieldBg,
+    borderWidth: 1,
+    borderColor: T.fieldBorder,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    fontSize: 14,
+    color: T.ink,
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  ctaBase: {
+    backgroundColor: T.greenPressed,
+    borderRadius: 16,
+    paddingBottom: 4,
+    marginTop: 8,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  cta: {
+    backgroundColor: T.green,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  ctaText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  termsBlock: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  loginBlock: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  termsCaps: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: T.caps,
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  termsText: {
+    fontSize: 13,
+    color: T.ink,
+  },
+  termsLink: {
+    fontSize: 13,
+    color: T.blue,
+    fontWeight: '600',
+  },
+});

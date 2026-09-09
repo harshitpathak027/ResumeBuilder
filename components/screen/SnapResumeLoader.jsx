@@ -1,16 +1,23 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
+import LottieView from "lottie-react-native";
 
-const BRAND = "#E76F51";
-const LIGHT = "#DDF3F0";
-const DARK_TEXT = "#102A43";
-const MUTED = "#486581";
+const T = {
+  ink: "#141821",
+  fieldBorder: "#EAEBED",
+  caps: "#9AA0AC",
+  green: "#58CC02",
+  greenBg: "#EEFCE2",
+  blue: "#1CB0F6",
+  blueBg: "#E8F2FF",
+  track: "#EDEFF2",
+};
 
 const MESSAGES = [
   "Crafting your perfect resume...",
   "Polishing every bullet point...",
-  "Optimizing for ATS systems...",
+  "Optimizing layout and spacing...",
   "Almost ready to impress!",
 ];
 
@@ -33,9 +40,9 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
     () => [
       { top: 90, left: 30, size: 80, anim: new Animated.Value(0) },
       { top: 180, right: 28, size: 52, anim: new Animated.Value(0) },
-      { top: 360, left: 20, size: 120, anim: new Animated.Value(0) },
+      { top: 360, left: 20, size: 110, anim: new Animated.Value(0) },
       { top: 500, right: 40, size: 70, anim: new Animated.Value(0) },
-      { top: 640, left: 110, size: 42, anim: new Animated.Value(0) },
+      { top: 640, left: 100, size: 42, anim: new Animated.Value(0) },
     ],
     []
   );
@@ -69,7 +76,7 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
 
     Animated.timing(progressAnim, {
       toValue: 97,
-      duration: 9000,
+      duration: 8500,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
@@ -126,15 +133,7 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
     return () => {
       progressAnim.removeListener(progressListener);
     };
-  }, [
-    bgFloats,
-    dot1,
-    dot2,
-    dot3,
-    iconPulse,
-    progressAnim,
-    ringRotate,
-  ]);
+  }, [bgFloats, dot1, dot2, dot3, iconPulse, progressAnim, ringRotate]);
 
   useEffect(() => {
     Animated.parallel([
@@ -181,7 +180,8 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
   });
 
   return (
-    <View className="flex-1 bg-[#F7F9FC]">
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Background Floating Orbs */}
       {bgFloats.map((circle, index) => {
         const rise = circle.anim.interpolate({
           inputRange: [0, 1],
@@ -190,7 +190,7 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
 
         const fade = circle.anim.interpolate({
           inputRange: [0, 1],
-          outputRange: [0.45, 0.85],
+          outputRange: [0.3, 0.75],
         });
 
         return (
@@ -204,7 +204,7 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
               width: circle.size,
               height: circle.size,
               borderRadius: circle.size / 2,
-              backgroundColor: LIGHT,
+              backgroundColor: T.greenBg,
               opacity: fade,
               transform: [{ translateY: rise }],
             }}
@@ -212,49 +212,59 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
         );
       })}
 
-      <View className="px-6 pt-14 pb-4 flex-row items-center gap-3">
-        <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: LIGHT }}>
-          <MaterialIcons name="description" size={24} color={BRAND} />
+      {/* Top Header */}
+      <View style={{ paddingHorizontal: 24, paddingTop: 56, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: T.greenBg, alignItems: "center", justifyContent: "center" }}>
+          <MaterialIcons name="description" size={24} color={T.green} />
         </View>
-        <Text className="text-2xl font-bold" style={{ color: DARK_TEXT }}>
-          Resume Builder
-        </Text>
+        <Text style={{ fontSize: 20, fontWeight: "900", color: T.ink }}>Resume Duo</Text>
       </View>
 
-      <View className="flex-1 px-6 items-center justify-center">
-        <View className="items-center justify-center mb-8" style={{ width: 150, height: 150 }}>
+      {/* Main Loader Stage */}
+      <View style={{ flex: 1, paddingHorizontal: 24, alignItems: "center", justifyContent: "center" }}>
+        {/* Ring & Mascot Stage */}
+        <View style={{ width: 160, height: 160, alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
           <Animated.View
             style={{
               position: "absolute",
-              width: 128,
-              height: 128,
-              borderRadius: 64,
+              width: 144,
+              height: 144,
+              borderRadius: 72,
               borderWidth: 2,
               borderStyle: "dashed",
-              borderColor: BRAND,
+              borderColor: T.green,
               transform: [{ rotate: ringSpin }],
             }}
           />
 
           <Animated.View
             style={{
-              width: 78,
-              height: 78,
-              borderRadius: 20,
-              backgroundColor: LIGHT,
+              width: 96,
+              height: 96,
+              borderRadius: 28,
+              backgroundColor: T.blueBg,
               alignItems: "center",
-              justifyContent: "center",
+              justify: "center",
+              overflow: "hidden",
               transform: [{ scale: Animated.multiply(iconPulse, iconPop) }],
             }}
           >
-            <MaterialIcons name="article" size={40} color={BRAND} />
+            <LottieView
+              source={require("../../assets/images/lionblink.json")}
+              autoPlay
+              loop
+              style={{ width: "100%", height: "100%" }}
+            />
           </Animated.View>
         </View>
 
+        {/* Dynamic Message */}
         <Animated.Text
-          className="text-center font-semibold text-lg"
           style={{
-            color: DARK_TEXT,
+            fontSize: 18,
+            fontWeight: "800",
+            color: T.ink,
+            textAlign: "center",
             transform: [{ translateY: messageSlide }],
             opacity: messageOpacity,
           }}
@@ -262,55 +272,35 @@ export default function SnapResumeLoader({ messages = MESSAGES }) {
           {messages[messageIndex] || MESSAGES[messageIndex % MESSAGES.length]}
         </Animated.Text>
 
-        <View className="flex-row items-center justify-center mt-3 mb-6" style={{ gap: 8 }}>
-          <Animated.View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: BRAND,
-              transform: [{ translateY: dot1 }],
-            }}
-          />
-          <Animated.View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: BRAND,
-              transform: [{ translateY: dot2 }],
-            }}
-          />
-          <Animated.View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: BRAND,
-              transform: [{ translateY: dot3 }],
-            }}
-          />
+        {/* Animated Bouncing Dots */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 12, marginBottom: 24, gap: 8 }}>
+          <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: T.green, transform: [{ translateY: dot1 }] }} />
+          <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: T.green, transform: [{ translateY: dot2 }] }} />
+          <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: T.green, transform: [{ translateY: dot3 }] }} />
         </View>
 
-        <View className="w-full mb-3" style={{ maxWidth: 320 }}>
-          <View className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: LIGHT }}>
+        {/* Progress Slider */}
+        <View style={{ width: "100%", maxWidth: 300, marginBottom: 12 }}>
+          <View style={{ height: 10, borderRadius: 5, backgroundColor: T.track, overflow: "hidden" }}>
             <Animated.View
               style={{
                 height: "100%",
                 width: progressWidth,
-                backgroundColor: BRAND,
-                borderRadius: 999,
+                backgroundColor: T.green,
+                borderRadius: 5,
               }}
             />
           </View>
-          <Text className="mt-2 text-sm text-right" style={{ color: MUTED }}>
+          <Text style={{ fontSize: 13, fontWeight: "800", color: T.caps, textAlign: "right", marginTop: 6 }}>
             {String(progressValue).padStart(2, "0")}%
           </Text>
         </View>
       </View>
 
-      <View className="items-center pb-9">
-        <Text style={{ color: MUTED, fontWeight: "500" }}>Powered by AI</Text>
+      {/* Footer Badge */}
+      <View style={{ alignItems: "center", paddingBottom: 36 }}>
+        <Text style={{ fontSize: 12, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", color: T.caps }}>
+        </Text>
       </View>
     </View>
   );
